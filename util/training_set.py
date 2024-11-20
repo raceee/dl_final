@@ -3,13 +3,16 @@ import pandas as pd
 
 class GetTrainingSet:
     def __init__(self, path):
-        self.path = path # path to the main BELKA dataset
+        self.path = path
         if self.check_dataset_exists():
-            self.load_training_set()
-            self.load_last_unique_smiles()
-            self.load_random_unique_smiles()
+            self.training_set = self.load_training_set()
+            self.last_unique_smiles = self.load_last_unique_smiles()
+            self.random_unique_smiles = self.load_random_unique_smiles()
         else:
             print("Dataset not found in the current or sibling directories.")
+            self.training_set = None
+            self.last_unique_smiles = None
+            self.random_unique_smiles = None
     
     def check_dataset_exists(self):
         # Check if the dataset exists in the current or sibling 'data' directory
@@ -50,12 +53,18 @@ class GetTrainingSet:
             # Convert the list of unique smiles to a DataFrame
             result_df = pd.DataFrame({'molecule_smiles': smiles_list})
 
-            # Save the result to a CSV file without the index
-            result_df.to_csv("training_dataset.csv", index=False)
-            print("Data successfully written to training_dataset.csv")
+            # Save the result to a CSV file without the index in the 'data' directory
+            data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
+            if not os.path.exists(data_dir):
+                os.makedirs(data_dir)
+            result_df.to_csv(os.path.join(data_dir, "training_dataset.csv"), index=False)
+            print("Data successfully written to data/training_dataset.csv")
+
+            return result_df
 
         except Exception as e:
             print(f"An error occurred: {e}")
+            return None
 
     def load_last_unique_smiles(self):
         # Load the last rows of the CSV file to get unique smiles from the end
@@ -81,12 +90,18 @@ class GetTrainingSet:
             # Convert the list of unique smiles to a DataFrame
             result_df = pd.DataFrame({'molecule_smiles': smiles_list})
 
-            # Save the result to a CSV file without the index
-            result_df.to_csv("last_unique_smiles.csv", index=False)
-            print("Data successfully written to last_unique_smiles.csv")
+            # Save the result to a CSV file without the index in the 'data' directory
+            data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
+            if not os.path.exists(data_dir):
+                os.makedirs(data_dir)
+            result_df.to_csv(os.path.join(data_dir, "last_unique_smiles.csv"), index=False)
+            print("Data successfully written to data/last_unique_smiles.csv")
+
+            return result_df
 
         except Exception as e:
             print(f"An error occurred while loading the last unique smiles: {e}")
+            return None
 
     def load_random_unique_smiles(self):
         # Load 10 random unique smiles from the dataset
@@ -102,13 +117,15 @@ class GetTrainingSet:
             # Convert the list of random unique smiles to a DataFrame
             result_df = pd.DataFrame({'molecule_smiles': random_smiles})
 
-            # Save the result to a CSV file without the index
-            result_df.to_csv("random_unique_smiles.csv", index=False)
-            print("Data successfully written to random_unique_smiles.csv")
+            # Save the result to a CSV file without the index in the 'data' directory
+            data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
+            if not os.path.exists(data_dir):
+                os.makedirs(data_dir)
+            result_df.to_csv(os.path.join(data_dir, "random_unique_smiles.csv"), index=False)
+            print("Data successfully written to data/random_unique_smiles.csv")
+
+            return result_df
 
         except Exception as e:
             print(f"An error occurred while loading the random unique smiles: {e}")
-
-# Example usage:
-path_to_csv = "your_file.csv"
-training_set = GetTrainingSet(path_to_csv)
+            return None
