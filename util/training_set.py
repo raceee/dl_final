@@ -4,15 +4,22 @@ import pandas as pd
 class GetTrainingSet:
     def __init__(self, path):
         self.path = path
-        if self.check_dataset_exists():
+        if self.check_dataset_exists() and not os.path.exists("./data/random_unique_smiles.csv"):
             self.training_set = self.load_training_set()
             self.last_unique_smiles = self.load_last_unique_smiles()
             self.random_unique_smiles = self.load_random_unique_smiles()
+            return self.training_set, self.last_unique_smiles, self.random_unique_smiles
+        elif os.path.exists("./data/training_dataset.csv"):
+            self.training_set = pd.read_csv("./data/training_dataset.csv")
+            self.last_unique_smiles = pd.read_csv("./data/last_unique_smiles.csv")
+            self.random_unique_smiles = pd.read_csv("./data/random_unique_smiles.csv")
+            return self.training_set, self.last_unique_smiles, self.random_unique_smiles
         else:
             print("Dataset not found in the current or sibling directories.")
             self.training_set = None
             self.last_unique_smiles = None
             self.random_unique_smiles = None
+            raise FileNotFoundError("Dataset not found in the current or sibling directories.")
     
     def check_dataset_exists(self):
         # Check if the dataset exists in the current or sibling 'data' directory
