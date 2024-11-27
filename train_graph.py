@@ -35,8 +35,9 @@ if __name__ == '__main__':
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
 
-    graph_data = train_dataset[0].edge_index
-    print(graph_data)
+    # graph_data = train_dataset[0]
+    # print(graph_data.x)
+    # print(graph_data.edge_index)
 
     # input_dim = 1
     # hidden_dim = 128
