@@ -8,7 +8,36 @@ from util.training_set import GetTrainingSet
 import torch.nn as nn
 import random
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# contrastive loss on the batch
+def contrastive_loss(hidden_states, labels):
+    # hidden_states: (batch_size, seq_len, hidden_size)
+    # labels: (batch_size)
+    batch_size = hidden_states.size(0)
+    hidden_states = hidden_states.view(batch_size, -1)
+    hidden_states = hidden_states / torch.norm(hidden_states, dim=1, keepdim=True)
+    
+    similarity_matrix = torch.matmul(hidden_states, hidden_states.t())
+
+    labels = labels.unsqueeze(1)
+
+    mask = torch.eq(labels, labels.t()).float()
+    neg_mask = 1 - mask
+    neg_similarity = similarity_matrix * neg_mask
+    neg_similarity = torch.exp(neg_similarity)
+    neg_similarity = neg_similarity.sum(dim=1)
+    pos_similarity = similarity_matrix * mask
+    pos_similarity = torch.exp(pos_similarity)
+    pos_similarity = pos_similarity.sum(dim=1)
+    loss = -torch.log(pos_similarity / (pos_similarity + neg_similarity)).mean()
+    return loss
+
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+elif torch.backends.mps.is_available():
+    device = torch.device("mps")
+else:
+    device = torch.device("cpu")
+
 print(f"Using device: {device}")
 training_df, last_unique_df, random_in_training_df = GetTrainingSet("data/train_sample.csv").get_training_data()
 
@@ -37,6 +66,8 @@ scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0.1 * to
 
 loss_fn = nn.CrossEntropyLoss()
 
+
+
 num_epochs = 10
 model.train()
 for epoch in range(num_epochs):
@@ -47,6 +78,9 @@ for epoch in range(num_epochs):
 
         # Forward pass
         outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        hidden_sattes = outputs.hidden_states
+
+
         loss = outputs.loss
 
         # Backward pass
