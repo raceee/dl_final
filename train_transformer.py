@@ -2,57 +2,83 @@ import torch
 import pandas as pd
 from transformers import AutoTokenizer, get_linear_schedule_with_warmup
 from torch.utils.data import DataLoader
+from torch.nn.parallel import DistributedDataParallel as DDP
 from _transformer.model import MoleculeBERTModel
 from _transformer.dataset import MoleculeDataset
 from util.training_set import GetTrainingSet
 import torch.nn as nn
 import random
+import os
+import torch.distributed as dist
+def setup(rank, world_size):
+    dist.init_process_group("nccl", rank=rank, world_size=world_size)
+    torch.cuda.set_device(rank)
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
-training_df, last_unique_df, random_in_training_df = GetTrainingSet("data/train_sample.csv").get_training_data()
+# Cleanup function for DDP
+def cleanup():
+    dist.destroy_process_group()
 
-training_df = training_df.sample(frac=1).reset_index(drop=True)
+def main():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Using device: {device}")
+    training_df, last_unique_df, random_in_training_df = GetTrainingSet("data/train_sample.csv").get_training_data()
 
-train_size = int(0.8 * len(training_df))
-train_df = training_df.iloc[:train_size]
-val_df = training_df.iloc[train_size:]
+    training_df = training_df.sample(frac=1).reset_index(drop=True)
 
-train_smiles_list = train_df['molecule_smiles'].tolist()
-val_smiles_list = val_df['molecule_smiles'].tolist()
+    train_size = int(0.8 * len(training_df))
+    train_df = training_df.iloc[:train_size]
+    val_df = training_df.iloc[train_size:]
 
-tokenizer = AutoTokenizer.from_pretrained('DeepChem/ChemBERTa-77M-MTR')
+    train_smiles_list = train_df['molecule_smiles'].tolist()
+    val_smiles_list = val_df['molecule_smiles'].tolist()
 
-train_dataset = MoleculeDataset(train_smiles_list, tokenizer)
-val_dataset = MoleculeDataset(val_smiles_list, tokenizer)
+    tokenizer = AutoTokenizer.from_pretrained('DeepChem/ChemBERTa-77M-MTR')
 
-train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    train_dataset = MoleculeDataset(train_smiles_list, tokenizer)
+    val_dataset = MoleculeDataset(val_smiles_list, tokenizer)
 
-model = MoleculeBERTModel(vocab_size=tokenizer.vocab_size).to(device)
+    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
 
-optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
-total_steps = len(train_dataloader) * 10  # Assuming 10 epochs
-scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0.1 * total_steps, num_training_steps=total_steps)
+    model = MoleculeBERTModel(vocab_size=tokenizer.vocab_size).to(device)
 
-loss_fn = nn.CrossEntropyLoss()
+    optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
+    total_steps = len(train_dataloader) * 10  # Assuming 10 epochs
+    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0.1 * total_steps, num_training_steps=total_steps)
 
-num_epochs = 10
-model.train()
-for epoch in range(num_epochs):
-    for batch in train_dataloader:
-        input_ids, labels = batch
-        input_ids, labels = input_ids.to(device), labels.to(device)
-        attention_mask = (input_ids != tokenizer.pad_token_id).long().to(device)
+    loss_fn = nn.CrossEntropyLoss()
 
-        # Forward pass
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-        loss = outputs.loss
+    num_epochs = 10
+    model.train()
+    for epoch in range(num_epochs):
+        for batch in train_dataloader:
+            input_ids, labels = batch
+            input_ids, labels = input_ids.to(device), labels.to(device)
+            attention_mask = (input_ids != tokenizer.pad_token_id).long().to(device)
 
-        # Backward pass
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        scheduler.step()
+            # Forward pass
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+            loss = outputs.loss
 
-        print(f"Epoch {epoch + 1}, Loss: {loss.item()}")
+            # Backward pass
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
+
+            print(f"Epoch {epoch + 1}, Loss: {loss.item()}")
+
+    cleanup()
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--world_size", type=int, default=torch.cuda.device_count())
+    parser.add_argument("--rank", type=int, required=True)
+    args = parser.parse_args()
+
+    world_size = args.world_size
+    rank = args.rank
+
+    main(rank, world_size)

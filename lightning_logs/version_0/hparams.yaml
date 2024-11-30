@@ -1,0 +1,7 @@
+attention_probs_dropout_prob: 0.1
+hidden_dropout_prob: 0.1
+hidden_size: 768
+intermediate_size: 3072
+learning_rate: 0.0001
+num_hidden_layers: 12
+num_training_steps: null
