@@ -11,6 +11,7 @@ import random
 import os
 import torch.distributed as dist
 
+# Determine the device
 if torch.cuda.is_available():
     device = torch.device("cuda")
 elif torch.backends.mps.is_available():
@@ -18,7 +19,7 @@ elif torch.backends.mps.is_available():
 else:
     device = torch.device("cpu")
 
-
+# Setup function for DDP
 def setup(rank, world_size):
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
@@ -27,33 +28,34 @@ def setup(rank, world_size):
 def cleanup():
     dist.destroy_process_group()
 
-
+# Contrastive loss function
 def contrastive_loss(hidden_states, labels):
-    # hidden_states: (batch_size, seq_len, hidden_size)
-    # labels: (batch_size)
+    # Normalize hidden states
     batch_size = hidden_states.size(0)
     hidden_states = hidden_states.view(batch_size, -1)
     hidden_states = hidden_states / torch.norm(hidden_states, dim=1, keepdim=True)
     
+    # Compute similarity matrix
     similarity_matrix = torch.matmul(hidden_states, hidden_states.t())
-
     labels = labels.unsqueeze(1)
 
+    # Positive and negative masks
     mask = torch.eq(labels, labels.t()).float()
     neg_mask = 1 - mask
-    neg_similarity = similarity_matrix * neg_mask
-    neg_similarity = torch.exp(neg_similarity)
-    neg_similarity = neg_similarity.sum(dim=1)
-    pos_similarity = similarity_matrix * mask
-    pos_similarity = torch.exp(pos_similarity)
-    pos_similarity = pos_similarity.sum(dim=1)
+    neg_similarity = torch.exp(similarity_matrix * neg_mask).sum(dim=1)
+    pos_similarity = torch.exp(similarity_matrix * mask).sum(dim=1)
+
+    # Calculate loss
     loss = -torch.log(pos_similarity / (pos_similarity + neg_similarity)).mean()
     return loss
 
-def main():
-    # contrastive loss on the batch
-    training_df, last_unique_df, random_in_training_df = GetTrainingSet("data/train_sample.csv").get_training_data()
+# Main function
+def main(rank, world_size):
+    # Setup DDP
+    setup(rank, world_size)
 
+    # Load and prepare data
+    training_df, _, _ = GetTrainingSet("data/train_sample.csv").get_training_data()
     training_df = training_df.sample(frac=1).reset_index(drop=True)
 
     train_size = int(0.8 * len(training_df))
@@ -65,31 +67,35 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained('DeepChem/ChemBERTa-77M-MTR')
 
+    # Datasets and DataLoaders
     train_dataset = MoleculeDataset(train_smiles_list, tokenizer)
     val_dataset = MoleculeDataset(val_smiles_list, tokenizer)
 
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
 
+    # Initialize model, optimizer, and scheduler
     model = MoleculeBERTModel(vocab_size=tokenizer.vocab_size).to(device)
-
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
     total_steps = len(train_dataloader) * 10  # Assuming 10 epochs
-    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0.1 * total_steps, num_training_steps=total_steps)
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=int(0.1 * total_steps),
+        num_training_steps=total_steps
+    )
+    loss_fn = nn.CrossEntropyLoss()
 
-loss_fn = nn.CrossEntropyLoss()
-
-    num_epochs = 10
+    # Training loop
     model.train()
-    for epoch in range(num_epochs):
+    for epoch in range(10):  # Number of epochs
         for batch in train_dataloader:
             input_ids, labels = batch
             input_ids, labels = input_ids.to(device), labels.to(device)
             attention_mask = (input_ids != tokenizer.pad_token_id).long().to(device)
 
-        # Forward pass
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-        loss = outputs.loss
+            # Forward pass
+            outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+            loss = outputs.loss
 
             # Backward pass
             optimizer.zero_grad()
@@ -97,10 +103,12 @@ loss_fn = nn.CrossEntropyLoss()
             optimizer.step()
             scheduler.step()
 
-            print(f"Epoch {epoch + 1}, Loss: {loss.item()}")
+        print(f"Epoch {epoch + 1}, Loss: {loss.item()}")
 
+    # Cleanup DDP
     cleanup()
 
+# Entry point
 if __name__ == "__main__":
     import argparse
 
