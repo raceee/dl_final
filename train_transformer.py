@@ -19,8 +19,37 @@ def cleanup():
     dist.destroy_process_group()
 
 def main():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"Using device: {device}")
+    # contrastive loss on the batch
+def contrastive_loss(hidden_states, labels):
+    # hidden_states: (batch_size, seq_len, hidden_size)
+    # labels: (batch_size)
+    batch_size = hidden_states.size(0)
+    hidden_states = hidden_states.view(batch_size, -1)
+    hidden_states = hidden_states / torch.norm(hidden_states, dim=1, keepdim=True)
+    
+    similarity_matrix = torch.matmul(hidden_states, hidden_states.t())
+
+    labels = labels.unsqueeze(1)
+
+    mask = torch.eq(labels, labels.t()).float()
+    neg_mask = 1 - mask
+    neg_similarity = similarity_matrix * neg_mask
+    neg_similarity = torch.exp(neg_similarity)
+    neg_similarity = neg_similarity.sum(dim=1)
+    pos_similarity = similarity_matrix * mask
+    pos_similarity = torch.exp(pos_similarity)
+    pos_similarity = pos_similarity.sum(dim=1)
+    loss = -torch.log(pos_similarity / (pos_similarity + neg_similarity)).mean()
+    return loss
+
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+elif torch.backends.mps.is_available():
+    device = torch.device("mps")
+else:
+    device = torch.device("cpu")
+    
+print(f"Using device: {device}")
     training_df, last_unique_df, random_in_training_df = GetTrainingSet("data/train_sample.csv").get_training_data()
 
     training_df = training_df.sample(frac=1).reset_index(drop=True)
@@ -46,7 +75,7 @@ def main():
     total_steps = len(train_dataloader) * 10  # Assuming 10 epochs
     scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0.1 * total_steps, num_training_steps=total_steps)
 
-    loss_fn = nn.CrossEntropyLoss()
+loss_fn = nn.CrossEntropyLoss()
 
     num_epochs = 10
     model.train()
@@ -56,9 +85,9 @@ def main():
             input_ids, labels = input_ids.to(device), labels.to(device)
             attention_mask = (input_ids != tokenizer.pad_token_id).long().to(device)
 
-            # Forward pass
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-            loss = outputs.loss
+        # Forward pass
+        outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
+        loss = outputs.loss
 
             # Backward pass
             optimizer.zero_grad()
