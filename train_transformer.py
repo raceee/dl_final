@@ -6,6 +6,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from _transformer.model import MoleculeBERTModel
 from _transformer.dataset import MoleculeDataset
 from util.training_set import GetTrainingSet
+from util.trainer import Trainer  # Import the Trainer class
 import torch.nn as nn
 import random
 import os
@@ -19,41 +20,9 @@ elif torch.backends.mps.is_available():
 else:
     device = torch.device("cpu")
 
-# Setup function for DDP
-def setup(rank, world_size):
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
-    torch.cuda.set_device(rank)
-
-# Cleanup function for DDP
-def cleanup():
-    dist.destroy_process_group()
-
-# Contrastive loss function
-def contrastive_loss(hidden_states, labels):
-    # Normalize hidden states
-    batch_size = hidden_states.size(0)
-    hidden_states = hidden_states.view(batch_size, -1)
-    hidden_states = hidden_states / torch.norm(hidden_states, dim=1, keepdim=True)
-    
-    # Compute similarity matrix
-    similarity_matrix = torch.matmul(hidden_states, hidden_states.t())
-    labels = labels.unsqueeze(1)
-
-    # Positive and negative masks
-    mask = torch.eq(labels, labels.t()).float()
-    neg_mask = 1 - mask
-    neg_similarity = torch.exp(similarity_matrix * neg_mask).sum(dim=1)
-    pos_similarity = torch.exp(similarity_matrix * mask).sum(dim=1)
-
-    # Calculate loss
-    loss = -torch.log(pos_similarity / (pos_similarity + neg_similarity)).mean()
-    return loss
 
 # Main function
-def main(rank, world_size):
-    # Setup DDP
-    setup(rank, world_size)
-
+def main():
     # Load and prepare data
     training_df, _, _ = GetTrainingSet("data/train_sample.csv").get_training_data()
     training_df = training_df.sample(frac=1).reset_index(drop=True)
@@ -85,39 +54,28 @@ def main(rank, world_size):
     )
     loss_fn = nn.CrossEntropyLoss()
 
-    # Training loop
-    model.train()
-    for epoch in range(10):  # Number of epochs
-        for batch in train_dataloader:
-            input_ids, labels = batch
-            input_ids, labels = input_ids.to(device), labels.to(device)
-            attention_mask = (input_ids != tokenizer.pad_token_id).long().to(device)
+    # Initialize and run Trainer
+    trainer = Trainer(
+        model=model,
+        train_dataloader=train_dataloader,
+        val_dataloader=val_dataloader,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        device=device,
+        criterion=loss_fn
+    )
 
-            # Forward pass
-            outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-            loss = outputs.loss
+    # Train the model
+    history = trainer.train(num_epochs=10)
 
-            # Backward pass
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            scheduler.step()
-
-        print(f"Epoch {epoch + 1}, Loss: {loss.item()}")
-
-    # Cleanup DDP
-    cleanup()
+    # Plot and save the loss curves
+    trainer.plot_loss_curves(
+        history=history,
+        model_name="MoleculeBERT with AdamW",
+        save_path="plots",  # Directory to save the plot
+        show_plot=True      # Set to True to display the plot
+    )
 
 # Entry point
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--world_size", type=int, default=torch.cuda.device_count())
-    parser.add_argument("--rank", type=int, required=True)
-    args = parser.parse_args()
-
-    world_size = args.world_size
-    rank = args.rank
-
-    main(rank, world_size)
+    main()
