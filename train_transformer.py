@@ -10,6 +10,15 @@ import torch.nn as nn
 import random
 import os
 import torch.distributed as dist
+
+if torch.cuda.is_available():
+    device = torch.device("cuda")
+elif torch.backends.mps.is_available():
+    device = torch.device("mps")
+else:
+    device = torch.device("cpu")
+
+
 def setup(rank, world_size):
     dist.init_process_group("nccl", rank=rank, world_size=world_size)
     torch.cuda.set_device(rank)
@@ -18,8 +27,7 @@ def setup(rank, world_size):
 def cleanup():
     dist.destroy_process_group()
 
-def main():
-    # contrastive loss on the batch
+
 def contrastive_loss(hidden_states, labels):
     # hidden_states: (batch_size, seq_len, hidden_size)
     # labels: (batch_size)
@@ -42,14 +50,8 @@ def contrastive_loss(hidden_states, labels):
     loss = -torch.log(pos_similarity / (pos_similarity + neg_similarity)).mean()
     return loss
 
-if torch.cuda.is_available():
-    device = torch.device("cuda")
-elif torch.backends.mps.is_available():
-    device = torch.device("mps")
-else:
-    device = torch.device("cpu")
-    
-print(f"Using device: {device}")
+def main():
+    # contrastive loss on the batch
     training_df, last_unique_df, random_in_training_df = GetTrainingSet("data/train_sample.csv").get_training_data()
 
     training_df = training_df.sample(frac=1).reset_index(drop=True)
