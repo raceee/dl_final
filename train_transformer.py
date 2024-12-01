@@ -6,11 +6,13 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from _transformer.model import MoleculeBERTModel
 from _transformer.dataset import MoleculeDataset
 from util.training_set import GetTrainingSet
+from util.trainer import Trainer  # Import the Trainer class
 import torch.nn as nn
 import random
 import os
 import torch.distributed as dist
 
+# Determine the device
 if torch.cuda.is_available():
     device = torch.device("cuda")
 elif torch.backends.mps.is_available():
@@ -19,41 +21,10 @@ else:
     device = torch.device("cpu")
 
 
-def setup(rank, world_size):
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
-    torch.cuda.set_device(rank)
-
-# Cleanup function for DDP
-def cleanup():
-    dist.destroy_process_group()
-
-
-def contrastive_loss(hidden_states, labels):
-    # hidden_states: (batch_size, seq_len, hidden_size)
-    # labels: (batch_size)
-    batch_size = hidden_states.size(0)
-    hidden_states = hidden_states.view(batch_size, -1)
-    hidden_states = hidden_states / torch.norm(hidden_states, dim=1, keepdim=True)
-    
-    similarity_matrix = torch.matmul(hidden_states, hidden_states.t())
-
-    labels = labels.unsqueeze(1)
-
-    mask = torch.eq(labels, labels.t()).float()
-    neg_mask = 1 - mask
-    neg_similarity = similarity_matrix * neg_mask
-    neg_similarity = torch.exp(neg_similarity)
-    neg_similarity = neg_similarity.sum(dim=1)
-    pos_similarity = similarity_matrix * mask
-    pos_similarity = torch.exp(pos_similarity)
-    pos_similarity = pos_similarity.sum(dim=1)
-    loss = -torch.log(pos_similarity / (pos_similarity + neg_similarity)).mean()
-    return loss
-
+# Main function
 def main():
-    # contrastive loss on the batch
-    training_df, last_unique_df, random_in_training_df = GetTrainingSet("data/train_sample.csv").get_training_data()
-
+    # Load and prepare data
+    training_df, _, _ = GetTrainingSet("data/train_sample.csv").get_training_data()
     training_df = training_df.sample(frac=1).reset_index(drop=True)
 
     train_size = int(0.8 * len(training_df))
@@ -65,51 +36,46 @@ def main():
 
     tokenizer = AutoTokenizer.from_pretrained('DeepChem/ChemBERTa-77M-MTR')
 
+    # Datasets and DataLoaders
     train_dataset = MoleculeDataset(train_smiles_list, tokenizer)
     val_dataset = MoleculeDataset(val_smiles_list, tokenizer)
 
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
 
+    # Initialize model, optimizer, and scheduler
     model = MoleculeBERTModel(vocab_size=tokenizer.vocab_size).to(device)
-
     optimizer = torch.optim.AdamW(model.parameters(), lr=5e-5)
     total_steps = len(train_dataloader) * 10  # Assuming 10 epochs
-    scheduler = get_linear_schedule_with_warmup(optimizer, num_warmup_steps=0.1 * total_steps, num_training_steps=total_steps)
+    scheduler = get_linear_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=int(0.1 * total_steps),
+        num_training_steps=total_steps
+    )
+    loss_fn = nn.CrossEntropyLoss()
 
-loss_fn = nn.CrossEntropyLoss()
+    # Initialize and run Trainer
+    trainer = Trainer(
+        model=model,
+        train_dataloader=train_dataloader,
+        val_dataloader=val_dataloader,
+        optimizer=optimizer,
+        scheduler=scheduler,
+        device=device,
+        criterion=loss_fn
+    )
 
-    num_epochs = 10
-    model.train()
-    for epoch in range(num_epochs):
-        for batch in train_dataloader:
-            input_ids, labels = batch
-            input_ids, labels = input_ids.to(device), labels.to(device)
-            attention_mask = (input_ids != tokenizer.pad_token_id).long().to(device)
+    # Train the model
+    history = trainer.train(num_epochs=10)
 
-        # Forward pass
-        outputs = model(input_ids=input_ids, attention_mask=attention_mask, labels=labels)
-        loss = outputs.loss
+    # Plot and save the loss curves
+    trainer.plot_loss_curves(
+        history=history,
+        model_name="MoleculeBERT with AdamW",
+        save_path="plots",  # Directory to save the plot
+        show_plot=True      # Set to True to display the plot
+    )
 
-            # Backward pass
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            scheduler.step()
-
-            print(f"Epoch {epoch + 1}, Loss: {loss.item()}")
-
-    cleanup()
-
+# Entry point
 if __name__ == "__main__":
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--world_size", type=int, default=torch.cuda.device_count())
-    parser.add_argument("--rank", type=int, required=True)
-    args = parser.parse_args()
-
-    world_size = args.world_size
-    rank = args.rank
-
-    main(rank, world_size)
+    main()

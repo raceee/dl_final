@@ -1,2 +1,6 @@
-pytorch-lightning==2.4.0
-transformers
+torch
+torchaudio
+torchvision
+matplotlib
+pandas
+numpy
