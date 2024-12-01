@@ -90,7 +90,7 @@ class Trainer:
         accuracy = correct / total
         return avg_loss, accuracy
 
-    def train(self, num_epochs):
+    def train(self, num_epochs, save_best_model_path=None):
         """
         Train the model for a specified number of epochs.
 
@@ -101,6 +101,8 @@ class Trainer:
             dict: Training and validation losses per epoch.
         """
         history = {"train_loss": [], "val_loss": [], "val_accuracy": []}
+        best_val_loss = float("inf")
+        best_model_state = None
 
         for epoch in range(num_epochs):
             train_loss = self.train_epoch()
@@ -116,6 +118,17 @@ class Trainer:
                 f"Val Loss = {val_loss:.4f}, "
                 f"Val Accuracy = {val_accuracy:.4f}"
             )
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model_state = self.model.state_dict()
+                print(f"New best model found at epoch {epoch + 1} with validation loss {val_loss:.4f}")
+
+                # Save the best model if a path is provided
+                if save_best_model_path:
+                    os.makedirs(os.path.dirname(save_best_model_path), exist_ok=True)
+                    torch.save(best_model_state, save_best_model_path)
+                    print(f"Best model saved to {save_best_model_path}")
+
         return history
     
     def plot_loss_curves(self, history, model_name="Model", save_path=None, show_plot=False):

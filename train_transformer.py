@@ -66,7 +66,7 @@ def main():
     )
 
     # Train the model
-    history = trainer.train(num_epochs=10)
+    history = trainer.train(num_epochs=10, save_best_model_path=f"transformer_checkpoints/num_hidden_layers_{model.num_hidden_layers}.pth")
 
     # Plot and save the loss curves
     trainer.plot_loss_curves(

@@ -32,6 +32,9 @@ class MoleculeBERTModel(nn.Module):
     def __init__(self, vocab_size, hidden_dropout_prob=0.1, attention_probs_dropout_prob=0.1, num_hidden_layers=12, hidden_size=768, intermediate_size=3072):
         super(MoleculeBERTModel, self).__init__()
         # Create custom configuration
+        self.num_hidden_layers = num_hidden_layers
+        self.hidden_size = hidden_size
+        self.intermediate_size = intermediate_size
         config = BertConfig(
             vocab_size=vocab_size,
             hidden_dropout_prob=hidden_dropout_prob,
