@@ -34,7 +34,7 @@ class Trainer:
         self.model.train()
         total_loss = 0
         for batch in self.train_dataloader:
-            # Assume batch contains (input_ids, labels)
+            # Assume batch contains (input_ids, labels
             input_ids, labels = batch
             input_ids, labels = input_ids.to(self.device), labels.to(self.device)
 
