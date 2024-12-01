@@ -124,10 +124,10 @@ class Trainer:
                 print(f"New best model found at epoch {epoch + 1} with validation loss {val_loss:.4f}")
 
                 # Save the best model if a path is provided
-                if save_best_model_path:
-                    os.makedirs(os.path.dirname(save_best_model_path), exist_ok=True)
-                    torch.save(best_model_state, save_best_model_path)
-                    print(f"Best model saved to {save_best_model_path}")
+                path_name = f"checkpoints/{self.model.__class__.__name__}_num_hidden_layers_{self.model.num_hidden_layers}_epoch_{epoch + 1}_loss_{best_val_loss}.pth"
+                os.makedirs(os.path.dirname(path_name), exist_ok=True)
+                torch.save(best_model_state, path_name)
+                print(f"Best model saved to {path_name}")
 
         return history
     
