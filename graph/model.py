@@ -19,8 +19,7 @@ class GraphNN_Model(torch.nn.Module):
         x = self.conv2(x, edge_index)
         x = F.relu(x)
 
-        x = global_mean_pool(x, batch)
-
         x = self.fc(x)
+        x = F.log_softmax(x, dim=1)
         
         return x
