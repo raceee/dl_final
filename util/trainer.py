@@ -2,6 +2,12 @@ import torch
 import torch.nn as nn
 import matplotlib.pyplot as plt
 import os
+import pandas as pd
+import numpy as np
+from rdkit import Chem
+from rdkit.Chem import CanonicalRankAtoms
+from sklearn.manifold import TSNE
+from umap import UMAP
 
 class Trainer:
     def __init__(self, model, train_dataloader, val_dataloader, optimizer, scheduler=None, device=None, criterion=None):
@@ -170,3 +176,130 @@ class Trainer:
 
         # Close the plot to free memory
         plt.close()
+
+    import torch
+
+    def infer_clusters(self, path, tokenizer, method="umap"):
+        """
+        Ingest the path of the dataframe, tokenize the SMILES and their rotations,
+        compute embeddings using the model, and visualize clusters.
+
+        Args:
+            path (str): Path to the dataframe
+            tokenizer: Tokenizer function or object for tokenizing SMILES strings
+            method (str): Dimensionality reduction method ('umap' or 'tsne')
+
+        Returns:
+            None: Displays the cluster visualization
+        """
+
+        # Determine the device
+        device = torch.device('mps') if torch.backends.mps.is_available() else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        # Load the dataframe
+        df = pd.read_csv(path)
+
+        # Rotate SMILES in the dataframe
+        df['rotated_smiles'] = df['molecule_smiles'].apply(self.generate_rotations)
+
+        # Tokenize all SMILES (original + rotations)
+        all_smiles = []
+        labels = []
+
+        for idx, (original, rotations) in enumerate(zip(df['molecule_smiles'], df['rotated_smiles'])):
+            all_smiles.append(original)
+            labels.append(f"Molecule {idx+1}")
+            for rotation in rotations:
+                all_smiles.append(rotation)
+                labels.append(f"Molecule {idx+1}")
+
+        # Tokenize
+        tokenized_smiles = tokenizer(
+            all_smiles,
+            return_tensors='pt',
+            padding='max_length',
+            truncation=True,
+            max_length=128
+        )['input_ids'].to(device)  # Move tokenized inputs to the device
+
+        # Move the model to the same device
+        self.model.to(device)
+
+        # Pass through the model to get embeddings
+        with torch.no_grad():
+            embeddings = self.model(tokenized_smiles)
+
+        # Convert embeddings to numpy array for dimensionality reduction
+        embeddings_np = embeddings.cpu().numpy()
+
+        # Apply dimensionality reduction
+        if method.lower() == "tsne":
+            reducer = TSNE(n_components=2, random_state=42)
+        elif method.lower() == "umap":
+            reducer = UMAP(n_components=2, random_state=42)
+        else:
+            raise ValueError("Invalid method. Choose 'umap' or 'tsne'.")
+
+        reduced_embeddings = reducer.fit_transform(embeddings_np)
+
+        # Visualization
+        plt.figure(figsize=(10, 8))
+        unique_labels = list(set(labels))
+        for label in unique_labels:
+            indices = [i for i, lbl in enumerate(labels) if lbl == label]
+            plt.scatter(
+                reduced_embeddings[indices, 0],
+                reduced_embeddings[indices, 1],
+                label=label,
+                alpha=0.7,
+                s=50
+            )
+
+        plt.title(f"Cluster Visualization ({method.upper()})")
+        plt.xlabel("Component 1")
+        plt.ylabel("Component 2")
+        plt.legend(loc="best", bbox_to_anchor=(1.05, 1), title="Molecules")
+        plt.tight_layout()
+        plt.show()
+
+    def generate_rotations(self, smiles: str) -> list:
+        """
+        Generate exactly 10 valid 'rotations' of a molecule from a SMILES string.
+        
+        Parameters:
+        - smiles (str): The input SMILES string.
+        
+        Returns:
+        - List[str]: A list of 10 rotated SMILES strings.
+        """
+        try:
+            mol = Chem.MolFromSmiles(smiles)
+            if mol is None:
+                raise ValueError("Invalid SMILES string provided.")
+            
+            canonical_smiles = Chem.MolToSmiles(mol, canonical=True)
+
+            atom_orders = CanonicalRankAtoms.CanonicalRankAtoms(mol, breakTies=True)
+            
+            rotations = []
+            for i in range(len(atom_orders)):
+                rotated_order = atom_orders[i:] + atom_orders[:i]
+                
+                atom_map = {original: rotated for rotated, original in enumerate(rotated_order)}
+                mol_reordered = Chem.RenumberAtoms(mol, [atom_map[atom] for atom in range(mol.GetNumAtoms())])
+                
+                rotated_smiles = Chem.MolToSmiles(mol_reordered, canonical=False)
+                rotations.append(rotated_smiles)
+            
+            unique_rotations = list(set(rotations))
+            unique_rotations.sort()
+
+            if canonical_smiles not in unique_rotations:
+                unique_rotations.insert(0, canonical_smiles)
+
+            # Limit to 10 rotations
+            return unique_rotations[:10]
+
+        except Exception as e:
+            print(f"Error: {e}")
+            return []
