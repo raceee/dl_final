@@ -4,10 +4,13 @@ import matplotlib.pyplot as plt
 import os
 import pandas as pd
 import numpy as np
-from rdkit import Chem
 from rdkit.Chem import CanonicalRankAtoms
 from sklearn.manifold import TSNE
 from umap import UMAP
+import random
+from rdkit.Chem import rdmolops
+from rdkit import Chem
+from rdkit.Chem import AllChem
 
 class Trainer:
     def __init__(self, model, train_dataloader, val_dataloader, optimizer, scheduler=None, device=None, criterion=None):
@@ -207,6 +210,7 @@ class Trainer:
         labels = []
 
         for idx, (original, rotations) in enumerate(zip(df['molecule_smiles'], df['rotated_smiles'])):
+            print(("HELLO!! ",original, rotations))
             all_smiles.append(original)
             labels.append(f"Molecule {idx+1}")
             for rotation in rotations:
@@ -226,12 +230,17 @@ class Trainer:
         self.model.to(device)
 
         # Pass through the model to get embeddings
+        # Pass through the model to get embeddings
         with torch.no_grad():
-            embeddings = self.model(tokenized_smiles)
+            outputs = self.model(tokenized_smiles)  # Get model outputs
+            embeddings = outputs.logits  # Extract logits
+
+        embeddings_cls = embeddings[:, 0, :]  # Select the embedding at position 0
 
         # Convert embeddings to numpy array for dimensionality reduction
-        embeddings_np = embeddings.cpu().numpy()
+        embeddings_np = embeddings_cls.cpu().numpy()
 
+        # Apply dimensionality reduction
         # Apply dimensionality reduction
         if method.lower() == "tsne":
             reducer = TSNE(n_components=2, random_state=42)
@@ -262,44 +271,40 @@ class Trainer:
         plt.tight_layout()
         plt.show()
 
-    def generate_rotations(self, smiles: str) -> list:
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+
+    def generate_rotations(smiles: str, num_rotations: int = 10) -> list:
         """
-        Generate exactly 10 valid 'rotations' of a molecule from a SMILES string.
-        
-        Parameters:
-        - smiles (str): The input SMILES string.
-        
+        Generate `num_rotations` reordered SMILES strings for a given molecule.
+
+        Args:
+            smiles (str): Input SMILES string.
+            num_rotations (int): Number of rotated SMILES to generate.
+
         Returns:
-        - List[str]: A list of 10 rotated SMILES strings.
+            List[str]: Unique, valid rotated SMILES strings.
         """
+        print("SMIELS::: ",smiles)
         try:
             mol = Chem.MolFromSmiles(smiles)
             if mol is None:
-                raise ValueError("Invalid SMILES string provided.")
+                raise ValueError("Invalid SMILES string.")
             
-            canonical_smiles = Chem.MolToSmiles(mol, canonical=True)
-
-            atom_orders = CanonicalRankAtoms.CanonicalRankAtoms(mol, breakTies=True)
-            
-            rotations = []
-            for i in range(len(atom_orders)):
-                rotated_order = atom_orders[i:] + atom_orders[:i]
+            rotations = set()
+            for _ in range(num_rotations * 2):  # Extra attempts to ensure diversity
+                randomized_mol = AllChem.RenumberAtoms(
+                    mol, list(range(mol.GetNumAtoms()))
+                )
+                rotated_smiles = Chem.MolToSmiles(randomized_mol, canonical=False)
+                rotations.add(rotated_smiles)
                 
-                atom_map = {original: rotated for rotated, original in enumerate(rotated_order)}
-                mol_reordered = Chem.RenumberAtoms(mol, [atom_map[atom] for atom in range(mol.GetNumAtoms())])
-                
-                rotated_smiles = Chem.MolToSmiles(mol_reordered, canonical=False)
-                rotations.append(rotated_smiles)
+                # Exit early if enough unique rotations are found
+                if len(rotations) >= num_rotations:
+                    break
             
-            unique_rotations = list(set(rotations))
-            unique_rotations.sort()
-
-            if canonical_smiles not in unique_rotations:
-                unique_rotations.insert(0, canonical_smiles)
-
-            # Limit to 10 rotations
-            return unique_rotations[:10]
+            return list(rotations)[:num_rotations]
 
         except Exception as e:
-            print(f"Error: {e}")
+            print(f"Error generating rotations: {e}")
             return []
