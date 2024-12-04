@@ -76,7 +76,7 @@ def main():
         show_plot=True      # Set to True to display the plot
     )
     
-    trainer.infer_clusters("/Users/racepeterson/dl_final/data/last_unique_smiles.csv", tokenizer, method="umap")
+    trainer.infer_clusters("./data/last_unique_smiles.csv", tokenizer, method="umap")
 
 # Entry point
 if __name__ == "__main__":
