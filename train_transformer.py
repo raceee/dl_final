@@ -77,6 +77,7 @@ def main():
     )
     
     trainer.infer_clusters("./data/last_unique_smiles.csv", tokenizer, method="umap")
+    
 
 # Entry point
 if __name__ == "__main__":

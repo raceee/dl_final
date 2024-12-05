@@ -271,10 +271,7 @@ class Trainer:
         plt.tight_layout()
         plt.show()
 
-    from rdkit import Chem
-    from rdkit.Chem import AllChem
-
-    def generate_rotations(smiles: str, num_rotations: int = 10) -> list:
+    def generate_rotations(self, smiles: str, num_rotations=10) -> list:
         """
         Generate `num_rotations` reordered SMILES strings for a given molecule.
 
@@ -285,21 +282,25 @@ class Trainer:
         Returns:
             List[str]: Unique, valid rotated SMILES strings.
         """
-        print("SMIELS::: ",smiles)
         try:
+            # Parse the molecule from the input SMILES string
             mol = Chem.MolFromSmiles(smiles)
             if mol is None:
                 raise ValueError("Invalid SMILES string.")
             
             rotations = set()
-            for _ in range(num_rotations * 2):  # Extra attempts to ensure diversity
-                randomized_mol = AllChem.RenumberAtoms(
-                    mol, list(range(mol.GetNumAtoms()))
-                )
+            num_atoms = mol.GetNumAtoms()
+
+            for _ in range(num_rotations * 2):
+                atom_indices = list(range(num_atoms))
+                random.shuffle(atom_indices)
+                
+                randomized_mol = AllChem.RenumberAtoms(mol, atom_indices)
+                
                 rotated_smiles = Chem.MolToSmiles(randomized_mol, canonical=False)
+                
                 rotations.add(rotated_smiles)
                 
-                # Exit early if enough unique rotations are found
                 if len(rotations) >= num_rotations:
                     break
             
