@@ -12,8 +12,8 @@ class GraphNN_Model(torch.nn.Module):
             self.convs.append(GCNConv(hidden_dim, hidden_dim))
         self.fc = torch.nn.Linear(hidden_dim, output_dim)
 
-    def forward(self, input_ids):
-        x, edge_index, batch = input_ids.x, input_ids.edge_index, input_ids.batch
+    def forward(self, data):
+        x, edge_index, batch = data.x, data.edge_index, data.batch
         x = x.float()
 
         for conv in self.convs:
@@ -21,6 +21,6 @@ class GraphNN_Model(torch.nn.Module):
             x = F.relu(x)
 
         x = self.fc(x)
-        # x = F.log_softmax(x, dim=1)
+        x = F.log_softmax(x, dim=1)
         
         return x
