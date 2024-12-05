@@ -11,6 +11,7 @@ import random
 from rdkit.Chem import rdmolops
 from rdkit import Chem
 from rdkit.Chem import AllChem
+from sklearn.metrics import silhouette_score
 
 class Trainer:
     def __init__(self, model, train_dataloader, val_dataloader, optimizer, scheduler=None, device=None, criterion=None):
@@ -32,7 +33,7 @@ class Trainer:
         self.optimizer = optimizer
         self.scheduler = scheduler
         self.device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.criterion = criterion or nn.CrossEntropyLoss()  # Default to CrossEntropyLoss
+        self.criterion = criterion or nn.CrossEntropyLoss()  # default to CrossEntropyLoss
         self.model.to(self.device)
 
     def set_criterion(self, criterion):
@@ -43,20 +44,15 @@ class Trainer:
         self.model.train()
         total_loss = 0
         for batch in self.train_dataloader:
-            # Assume batch contains (input_ids, labels
             input_ids, labels = batch
             input_ids, labels = input_ids.to(self.device), labels.to(self.device)
 
-            # Forward pass
             outputs = self.model(input_ids=input_ids)
 
-            # Extract logits
             logits = outputs.logits if isinstance(outputs, dict) else outputs
 
-            # Compute loss
             loss = self.criterion(logits.view(-1, logits.size(-1)), labels.view(-1))
 
-            # Backward pass
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
@@ -156,7 +152,6 @@ class Trainer:
         if not train_loss or not val_loss:
             raise ValueError("History does not contain 'train_loss' or 'val_loss'.")
 
-        # Plot losses
         plt.figure(figsize=(10, 6))
         plt.plot(train_loss, label="Training Loss", marker="o")
         plt.plot(val_loss, label="Validation Loss", marker="o")
@@ -166,21 +161,16 @@ class Trainer:
         plt.legend()
         plt.grid()
 
-        # Save the plot if a path is provided
         if save_path:
             os.makedirs(save_path, exist_ok=True)
             plot_path = os.path.join(save_path, f"{model_name.replace(' ', '_')}_loss_curves.png")
             plt.savefig(plot_path)
             print(f"Loss curves saved to {plot_path}")
 
-        # Show the plot if required
         if show_plot:
             plt.show()
 
-        # Close the plot to free memory
         plt.close()
-
-    import torch
 
     def infer_clusters(self, path, tokenizer, method="umap"):
         """
@@ -193,29 +183,24 @@ class Trainer:
             method (str): Dimensionality reduction method ('umap' or 'tsne')
 
         Returns:
-            None: Displays the cluster visualization
+            float: Silhouette score (higher is better).
         """
 
-        # Determine the device
         device = torch.device('mps') if torch.backends.mps.is_available() else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        # Load the dataframe
         df = pd.read_csv(path)
 
-        # Rotate SMILES in the dataframe
         df['rotated_smiles'] = df['molecule_smiles'].apply(self.generate_rotations)
 
-        # Tokenize all SMILES (original + rotations)
         all_smiles = []
-        labels = []
+        labels = []  
 
         for idx, (original, rotations) in enumerate(zip(df['molecule_smiles'], df['rotated_smiles'])):
-            print(("HELLO!! ",original, rotations))
             all_smiles.append(original)
-            labels.append(f"Molecule {idx+1}")
+            labels.append(idx)
             for rotation in rotations:
                 all_smiles.append(rotation)
-                labels.append(f"Molecule {idx+1}")
+                labels.append(idx)
 
         # Tokenize
         tokenized_smiles = tokenizer(
@@ -224,23 +209,18 @@ class Trainer:
             padding='max_length',
             truncation=True,
             max_length=128
-        )['input_ids'].to(device)  # Move tokenized inputs to the device
+        )['input_ids'].to(device)
 
-        # Move the model to the same device
         self.model.to(device)
 
-        # Pass through the model to get embeddings
-        # Pass through the model to get embeddings
         with torch.no_grad():
-            outputs = self.model(tokenized_smiles)  # Get model outputs
-            embeddings = outputs.logits  # Extract logits
+            outputs = self.model(tokenized_smiles)
+            embeddings = outputs.logits
 
-        embeddings_cls = embeddings[:, 0, :]  # Select the embedding at position 0
+        embeddings_cls = embeddings[:, 0, :]  # Select the embedding at position 0 since it is the [CLS] token
 
-        # Convert embeddings to numpy array for dimensionality reduction
         embeddings_np = embeddings_cls.cpu().numpy()
 
-        # Apply dimensionality reduction
         # Apply dimensionality reduction
         if method.lower() == "tsne":
             reducer = TSNE(n_components=2, random_state=42)
@@ -251,7 +231,9 @@ class Trainer:
 
         reduced_embeddings = reducer.fit_transform(embeddings_np)
 
-        # Visualization
+        silhouette = silhouette_score(embeddings_np, labels)
+        print(f"Silhouette Score: {silhouette:.4f}")
+
         plt.figure(figsize=(10, 8))
         unique_labels = list(set(labels))
         for label in unique_labels:
@@ -259,7 +241,7 @@ class Trainer:
             plt.scatter(
                 reduced_embeddings[indices, 0],
                 reduced_embeddings[indices, 1],
-                label=label,
+                label=f"Molecule {label + 1}",
                 alpha=0.7,
                 s=50
             )
@@ -271,19 +253,10 @@ class Trainer:
         plt.tight_layout()
         plt.show()
 
+        return silhouette
+
     def generate_rotations(self, smiles: str, num_rotations=10) -> list:
-        """
-        Generate `num_rotations` reordered SMILES strings for a given molecule.
-
-        Args:
-            smiles (str): Input SMILES string.
-            num_rotations (int): Number of rotated SMILES to generate.
-
-        Returns:
-            List[str]: Unique, valid rotated SMILES strings.
-        """
         try:
-            # Parse the molecule from the input SMILES string
             mol = Chem.MolFromSmiles(smiles)
             if mol is None:
                 raise ValueError("Invalid SMILES string.")
