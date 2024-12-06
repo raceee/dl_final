@@ -5,7 +5,6 @@ import os
 import pandas as pd
 import numpy as np
 from rdkit.Chem import CanonicalRankAtoms
-from sklearn.manifold import TSNE
 from umap import UMAP
 import random
 from rdkit.Chem import rdmolops
@@ -95,34 +94,40 @@ class Trainer:
         accuracy = correct / total
         return avg_loss, accuracy
 
-    def train(self, num_epochs, save_best_model_path=None):
+    def train(self, num_epochs, smiles_df_path, tokenizer, save_best_model_path=None):
         """
         Train the model for a specified number of epochs.
 
         Args:
             num_epochs (int): Number of epochs to train.
+            smiles_df_path (str): Path to the CSV file containing SMILES data for silhouette scoring.
+            tokenizer: Tokenizer function or object for SMILES strings.
+            save_best_model_path (str, optional): Path to save the best model.
 
         Returns:
             dict: Training and validation losses per epoch.
         """
-        history = {"train_loss": [], "val_loss": [], "val_accuracy": []}
+        history = {"train_loss": [], "val_loss": [], "val_accuracy": [], "silhouette_score": []}
         best_val_loss = float("inf")
         best_model_state = None
 
         for epoch in range(num_epochs):
             train_loss = self.train_epoch()
-            val_loss, val_accuracy = self.validate_epoch()
+            val_loss, val_accuracy, silhouette = self.validate_epoch(smiles_df_path, tokenizer)
 
             history["train_loss"].append(train_loss)
             history["val_loss"].append(val_loss)
             history["val_accuracy"].append(val_accuracy)
+            history["silhouette_score"].append(silhouette)
 
             print(
                 f"Epoch {epoch + 1}/{num_epochs}: "
                 f"Train Loss = {train_loss:.4f}, "
                 f"Val Loss = {val_loss:.4f}, "
-                f"Val Accuracy = {val_accuracy:.4f}"
+                f"Val Accuracy = {val_accuracy:.4f}, "
+                f"Silhouette Score = {silhouette:.4f}"
             )
+
             if val_loss < best_val_loss:
                 best_val_loss = val_loss
                 best_model_state = self.model.state_dict()
@@ -222,9 +227,7 @@ class Trainer:
         embeddings_np = embeddings_cls.cpu().numpy()
 
         # Apply dimensionality reduction
-        if method.lower() == "tsne":
-            reducer = TSNE(n_components=2, random_state=42)
-        elif method.lower() == "umap":
+        if method.lower() == "umap":
             reducer = UMAP(n_components=2, random_state=42)
         else:
             raise ValueError("Invalid method. Choose 'umap' or 'tsne'.")
@@ -282,3 +285,68 @@ class Trainer:
         except Exception as e:
             print(f"Error generating rotations: {e}")
             return []
+
+    def validate_epoch(self, smiles_df_path, tokenizer):
+        """Run one epoch of validation and compute silhouette score."""
+        self.model.eval()
+        total_loss = 0
+        correct = 0
+        total = 0
+        embeddings_list = []
+        labels_list = []
+
+        device = self.device
+
+        # Load the SMILES dataset for silhouette scoring
+        df = pd.read_csv(smiles_df_path)
+        df['rotated_smiles'] = df['molecule_smiles'].apply(self.generate_rotations)
+
+        all_smiles = []
+        labels = []
+
+        for idx, (original, rotations) in enumerate(zip(df['molecule_smiles'], df['rotated_smiles'])):
+            all_smiles.append(original)
+            labels.append(idx)
+            for rotation in rotations:
+                all_smiles.append(rotation)
+                labels.append(idx)
+
+        # Tokenize
+        tokenized_smiles = tokenizer(
+            all_smiles,
+            return_tensors='pt',
+            padding='max_length',
+            truncation=True,
+            max_length=128
+        )['input_ids'].to(device)
+
+        with torch.no_grad():
+            # Generate embeddings
+            outputs = self.model(tokenized_smiles)
+            embeddings = outputs.logits
+            embeddings_cls = embeddings[:, 0, :]  # Select [CLS] token
+
+            embeddings_np = embeddings_cls.cpu().numpy()
+
+            # Calculate silhouette score
+            silhouette = silhouette_score(embeddings_np, labels) if len(set(labels)) > 1 else float('nan')
+
+        # Validation metrics
+        with torch.no_grad():
+            for batch in self.val_dataloader:
+                input_ids, labels = batch
+                input_ids, labels = input_ids.to(self.device), labels.to(self.device)
+
+                outputs = self.model(input_ids=input_ids)
+                logits = outputs.logits if isinstance(outputs, dict) else outputs
+
+                loss = self.criterion(logits.view(-1, logits.size(-1)), labels.view(-1))
+                total_loss += loss.item()
+
+                _, predicted = logits.max(dim=-1)
+                correct += (predicted == labels).sum().item()
+                total += labels.numel()
+
+        avg_loss = total_loss / len(self.val_dataloader)
+        accuracy = correct / total
+        return avg_loss, accuracy, silhouette

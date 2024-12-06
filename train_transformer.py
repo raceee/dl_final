@@ -60,7 +60,11 @@ def main():
         criterion=loss_fn
     )
 
-    history = trainer.train(num_epochs=10, save_best_model_path=f"transformer_checkpoints/num_hidden_layers_{model.num_hidden_layers}.pth")
+    history = trainer.train(num_epochs=10,
+                            smiles_df_path="data/last_unique_smiles.csv",
+                            tokenizer=tokenizer, 
+                            save_best_model_path=f"transformer_checkpoints/num_hidden_layers_{model.num_hidden_layers}.pth"
+                            )
 
     trainer.plot_loss_curves(
         history=history,
