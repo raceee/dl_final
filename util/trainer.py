@@ -63,37 +63,6 @@ class Trainer:
         avg_loss = total_loss / len(self.train_dataloader)
         return avg_loss
 
-    def validate_epoch(self):
-        """Run one epoch of validation."""
-        self.model.eval()
-        total_loss = 0
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for batch in self.val_dataloader:
-                # Assume batch contains (input_ids, labels)
-                input_ids, labels = batch
-                input_ids, labels = input_ids.to(self.device), labels.to(self.device)
-
-                # Forward pass
-                outputs = self.model(input_ids=input_ids)
-
-                # Extract logits
-                logits = outputs.logits if isinstance(outputs, dict) else outputs
-
-                # Compute loss
-                loss = self.criterion(logits.view(-1, logits.size(-1)), labels.view(-1))
-
-                # Metrics
-                total_loss += loss.item()
-                _, predicted = logits.max(dim=-1)
-                correct += (predicted == labels).sum().item()
-                total += labels.numel()
-
-        avg_loss = total_loss / len(self.val_dataloader)
-        accuracy = correct / total
-        return avg_loss, accuracy
-
     def train(self, num_epochs, smiles_df_path, tokenizer, save_best_model_path=None):
         """
         Train the model for a specified number of epochs.
