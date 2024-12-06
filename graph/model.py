@@ -4,13 +4,14 @@ from torch_geometric.nn import GCNConv, global_mean_pool
 
 # Define the Graph Neural Network model
 class GraphNN_Model(torch.nn.Module):
-    def __init__(self, input_dim, hidden_dim, output_dim, num_layers=2):
+    def __init__(self, input_dim, hidden_dim, output_dim, num_hidden_layers=2):
         super(GraphNN_Model, self).__init__()
         self.convs = torch.nn.ModuleList()
         self.convs.append(GCNConv(input_dim, hidden_dim))
-        for _ in range(num_layers - 1):
+        for _ in range(num_hidden_layers - 1):
             self.convs.append(GCNConv(hidden_dim, hidden_dim))
         self.fc = torch.nn.Linear(hidden_dim, output_dim)
+        self.num_hidden_layers = num_hidden_layers
 
     def forward(self, data):
         x, edge_index, batch = data.x, data.edge_index, data.batch

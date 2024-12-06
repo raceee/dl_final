@@ -64,7 +64,7 @@ class Trainer_GNN:
                 # Compute loss
                 loss = self.criterion(outputs[mask], labels.squeeze().long())
 
-                # Metrics ??? (may need work)
+                # Metrics
                 total_loss += loss.item()
                 _, predicted = torch.max(outputs[mask], 1)
                 correct += (predicted == labels.squeeze().long()).sum().item()
@@ -81,26 +81,28 @@ class Trainer_GNN:
 
         for epoch in range(num_epochs):
             train_loss = self.train_epoch()
-            # val_loss, val_accuracy = self.validate_epoch()
+            val_loss, val_accuracy = self.validate_epoch()
 
             history['train_loss'].append(train_loss)
-            # history['val_loss'].append(val_loss)
-            # history['val_accuracy'].append(val_accuracy)
+            history['val_loss'].append(val_loss)
+            history['val_accuracy'].append(val_accuracy)
 
-            # print(f"Epoch {epoch + 1},
-            #       Train Loss: {train_loss:.2f},
-            #       Val Loss: {val_loss:.2f},
-            #       Val Accuracy: {val_accuracy:.2f}")
+            print(
+                f"Epoch {epoch + 1}/{num_epochs}: "
+                f"Train Loss = {train_loss:.4f}, "
+                f"Val Loss = {val_loss:.4f}, "
+                f"Val Accuracy = {val_accuracy:.4f}"
+            )
             
-            # if val_loss < best_val_loss:
-            #     best_val_loss = val_loss
-            #     best_model_state = self.model.state_dict()
-            #     print(f"New best model found at epoch {epoch + 1} with validation loss {val_loss:.4f}")
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model_state = self.model.state_dict()
+                print(f"New best model found at epoch {epoch + 1} with validation loss {val_loss:.4f}")
 
-            #     # Save the best model if a path is provided
-            #     path_name = f"checkpoints/{self.model.__class__.__name__}_num_hidden_layers_{self.model.num_hidden_layers}_epoch_{epoch + 1}_loss_{best_val_loss}.pth"
-            #     os.makedirs(os.path.dirname(path_name), exist_ok=True)
-            #     torch.save(best_model_state, path_name)
-            #     print(f"Best model saved to {path_name}")
+                # Save the best model if a path is provided
+                path_name = f"checkpoints/{self.model.__class__.__name__}_num_hidden_layers_{self.model.num_hidden_layers}_epoch_{epoch + 1}_loss_{best_val_loss}.pth"
+                os.makedirs(os.path.dirname(path_name), exist_ok=True)
+                torch.save(best_model_state, path_name)
+                print(f"Best model saved to {path_name}")
 
         return history

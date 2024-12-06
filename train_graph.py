@@ -23,7 +23,7 @@ def main():
     input_dim = 1
     hidden_dim = 64 # 32, 64, 128, 256
     output_dim =  118
-    num_layers = 2
+    num_hidden_layers = 2
     learning_rate = 0.001 # 0.01 - 0.0001
     gamma = 0.1
 
@@ -47,7 +47,7 @@ def main():
     val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
 
     # Initialize model, optimizer, and scheduler
-    model = GraphNN_Model(input_dim, hidden_dim, output_dim, num_layers=num_layers).to(device)
+    model = GraphNN_Model(input_dim, hidden_dim, output_dim, num_hidden_layers=num_hidden_layers).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 
