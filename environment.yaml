@@ -1,0 +1,28 @@
+name: my_env
+channels:
+  - nvidia
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.12
+  - pytorch=2.5.1
+  - torchvision
+  - torchaudio
+  - pytorch-cuda=12.4
+  - numpy
+  - pandas
+  - scikit-learn
+  - matplotlib
+  - pip
+  - pip:
+    - torch-geometric==2.6.1
+    - torch-scatter
+    - torch-sparse
+    - torch-cluster
+    - torch-spline-conv
+    - tqdm
+    - transformers
+    - rdkit
+    - umap-learn
+
