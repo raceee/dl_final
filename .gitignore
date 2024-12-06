@@ -163,6 +163,7 @@ cython_debug/
 
 *.csv
 .DS_Store
+???/*
 *.pth
 /lightning_logs/
 /transformer_checkpoints/
