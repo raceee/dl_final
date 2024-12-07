@@ -13,13 +13,17 @@ class GraphNN_Model(torch.nn.Module):
         self.fc = torch.nn.Linear(hidden_dim, output_dim)
         self.num_hidden_layers = num_hidden_layers
 
-    def forward(self, data):
-        x, edge_index, batch = data.x, data.edge_index, data.batch
+    def forward(self, data, return_embeddings=False):
+        x, edge_index = data.x, data.edge_index
         x = x.float()
 
         for conv in self.convs:
             x = conv(x, edge_index)
             x = F.relu(x)
+
+        graph_embeddings = x.mean(dim=0, keepdim=True)
+        if return_embeddings:
+            return graph_embeddings
 
         x = self.fc(x)
         x = F.log_softmax(x, dim=1)
