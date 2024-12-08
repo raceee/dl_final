@@ -3,15 +3,15 @@ import torch.nn.functional as F
 from torch_geometric.nn import GCNConv, global_mean_pool
 
 # Define the Graph Neural Network model
-class GraphNN_Model(torch.nn.Module):
+class GraphNN_Model_WO(torch.nn.Module):
     def __init__(self, input_dim, hidden_dim, output_dim, num_hidden_layers=2):
-        super(GraphNN_Model, self).__init__()
+        super(GraphNN_Model_WO, self).__init__()
 
-        self.convs = torch.nn.ModuleList()
-        self.convs.append(GCNConv(input_dim, hidden_dim))
+        self.linears = torch.nn.ModuleList()
+        self.linears.append(torch.nn.Linear(input_dim, hidden_dim))
         for _ in range(num_hidden_layers - 1):
-            self.convs.append(GCNConv(hidden_dim, hidden_dim))
-        
+            self.linears.append(torch.nn.Linear(hidden_dim, hidden_dim))
+
         self.fc = torch.nn.Linear(hidden_dim, output_dim)
         self.num_hidden_layers = num_hidden_layers
         self.hidden_dim = hidden_dim
@@ -20,8 +20,8 @@ class GraphNN_Model(torch.nn.Module):
         x, edge_index = data.x, data.edge_index
         x = x.float()
 
-        for conv in self.convs:
-            x = conv(x, edge_index)
+        for linear in self.linears:
+            x = linear(x)
             x = F.relu(x)
 
         graph_embeddings = x.mean(dim=0, keepdim=True)
