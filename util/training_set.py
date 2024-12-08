@@ -86,7 +86,7 @@ class GetTrainingSet:
             smiles_list = []
 
             # Collect up to 10 unique molecules from the end
-            for smile in reversed(last_smiles):
+            for smile in last_smiles:
                 if smile not in unique_smiles:
                     unique_smiles.add(smile)
                     smiles_list.append(smile)
