@@ -118,7 +118,7 @@ class Trainer_GNN:
 
         avg_loss = total_loss / len(self.val_dataloader)
         accuracy = correct / total
-        return avg_loss, accuracy, silhouette
+        return avg_loss, accuracy, float(silhouette)
     
     def train(self, num_epochs, smiles_df_path, save_best_model_path=None):
         history = {'train_loss': [], 'val_loss': [], 'val_accuracy': [], 'silhouette_score': []}
@@ -213,13 +213,12 @@ class Trainer_GNN:
             print(f"Error generating rotations: {e}")
             return []
 
-
-    def infer_clusters(self, path, method):
+    def infer_clusters(self, path, method, show_plot=False):
 
         df = pd.read_csv(path)
 
         df['rotated_smiles'] = df['molecule_smiles'].apply(self.generate_rotations)
-
+        
         all_smiles = []
         labels = []
 
@@ -249,23 +248,24 @@ class Trainer_GNN:
         silhouette = silhouette_score(embeddings_np, labels)
         print(f"Silhouette Score: {silhouette:.4f}")
 
-        plt.figure(figsize=(10, 8))
-        unique_labels = list(set(labels))
-        for label in unique_labels:
-            indices = [i for i, lbl in enumerate(labels) if lbl == label]
-            plt.scatter(
-                reduced_embeddings[indices, 0],
-                reduced_embeddings[indices, 1],
-                label=f"Molecule {label + 1}",
-                alpha=0.7,
-                s=50
-            )
+        if show_plot:
+            plt.figure(figsize=(10, 8))
+            unique_labels = list(set(labels))
+            for label in unique_labels:
+                indices = [i for i, lbl in enumerate(labels) if lbl == label]
+                plt.scatter(
+                    reduced_embeddings[indices, 0],
+                    reduced_embeddings[indices, 1],
+                    label=f"Molecule {label + 1}",
+                    alpha=0.7,
+                    s=50
+                )
 
-        plt.title(f"Cluster Visualization ({method.upper()})")
-        plt.xlabel("Component 1")
-        plt.ylabel("Component 2")
-        plt.legend(loc="best", bbox_to_anchor=(1.05, 1), title="Molecules")
-        plt.tight_layout()
-        plt.show()
+            plt.title(f"Cluster Visualization ({method.upper()})")
+            plt.xlabel("Component 1")
+            plt.ylabel("Component 2")
+            plt.legend(loc="best", bbox_to_anchor=(1.05, 1), title="Molecules")
+            plt.tight_layout()
+            plt.show()
 
-        return silhouette
+            return silhouette
