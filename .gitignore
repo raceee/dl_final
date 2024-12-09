@@ -162,6 +162,7 @@ cython_debug/
 #.idea/
 
 *.csv
+*.json
 .DS_Store
 *.pth
 /lightning_logs/

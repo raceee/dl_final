@@ -26,7 +26,7 @@ def main():
     print(f"Using device: {device}")
 
     # Not interesting
-    learning_rate = 0.001
+    learning_rate = 0.0001
     gamma = 0.1
 
     num_epochs = 10

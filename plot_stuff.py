@@ -51,8 +51,7 @@ def plot_gs_loss_curves(path, hidden_dims, num_hidden_layerss):
         plot_once(results, hidden_dims, num_hidden_layers)
 
 if __name__ == "__main__":
-    # path = "gs_results/2412_0800.json"
-    path = "gs_results/2412_0818.json"
+    path = "gs_results/241208_1832.json"
     hidden_dims = [32, 64, 128, 256]
     num_hidden_layerss = [2, 3, 4]
     plot_gs_loss_curves(path, hidden_dims, num_hidden_layerss)
