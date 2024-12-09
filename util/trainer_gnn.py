@@ -38,7 +38,7 @@ class Trainer_GNN:
             # Process masking
             mask = torch.rand(data.x.shape[0]) < 0.15 # 15% because BERT
             labels = data.x[mask].clone()
-            data.x[mask] = 0
+            data.x[mask] = -100 # was zero before
 
             # Forward pass
             outputs = self.model(data)
@@ -92,7 +92,7 @@ class Trainer_GNN:
                 embeddings_list.append(embeddings.cpu().numpy())
 
             embeddings_np = np.vstack(embeddings_list)
-            silhouette = silhouette_score(embeddings_np, labels) if len(set(labels)) > 1 else float('nan')
+            silhouette = silhouette_score(embeddings_np, labels) # if len(set(labels)) > 1 else float('nan')
 
         with torch.no_grad():
             for batch in self.val_dataloader:
@@ -102,7 +102,7 @@ class Trainer_GNN:
                 # Process masking
                 mask = torch.rand(data.x.shape[0]) < 0.15
                 labels = data.x[mask].clone()
-                data.x[mask] = 0
+                data.x[mask] = -100 # was zero before
 
                 # Forward pass
                 outputs = self.model(data)

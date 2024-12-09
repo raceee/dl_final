@@ -36,13 +36,14 @@ def main():
     output_dim =  118
 
     # Interesting to grid search on
-    hidden_dims = [32, 64, 128, 256]
-    num_hidden_layerss = [2, 3, 4]
+    hidden_dims = [256]#[32, 64, 128, 256]
+    num_hidden_layerss = [12]#[2, 3, 4] 
 
     # Load the training data
     # data_path = "data/train_sample.csv"
     data_path = "data/train.csv"
     training_df, last_unique_df, random_unique_df = GetTrainingSet(data_path).get_training_data()
+    training_df = training_df.sample(frac=1).reset_index(drop=True) # maybe helps, maybe doesn't, maybe does nothing
 
     train_size = int(0.8 * len(training_df))
     train_df = training_df.iloc[:train_size]
@@ -99,12 +100,12 @@ def main():
                                     save_best_model_path=f"gnn_checkpoints/hidden_dim_{hidden_dim}.pth")
             
             # Plot and save the loss curves
-            # trainer.plot_loss_curves(
-            #     history=history,
-            #     model_name="GraphNN with Adam",
-            #     save_path="plots",
-            #     show_plot=False
-            # )
+            trainer.plot_loss_curves(
+                history=history,
+                model_name="GraphNN with Adam",
+                save_path="plots",
+                show_plot=False
+            )
 
             # trainer.infer_clusters("data/last_unique_smiles.csv", method="umap", show_plot=False)
 
