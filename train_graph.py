@@ -7,10 +7,12 @@ from torch_geometric.loader import DataLoader
 from torch.optim.lr_scheduler import StepLR
 
 from util.training_set import GetTrainingSet
+from util.trainer_gnn import Trainer_GNN
 from graph.dataset import GraphNN_Dataset
 from graph.model import GraphNN_Model
 from graph.model_wo import GraphNN_Model_WO
-from util.trainer_gnn import Trainer_GNN
+from plot_stuff import plot_gs_loss_curves
+
 
 # Determine the device
 if torch.cuda.is_available():
@@ -24,11 +26,11 @@ def main():
     print(f"Using device: {device}")
 
     # Not interesting
-    learning_rate = 0.01
+    learning_rate = 0.001
     gamma = 0.1
 
     num_epochs = 10
-    batch_size = 128
+    batch_size = 256
     
     input_dim = 1
     output_dim =  118
@@ -53,8 +55,8 @@ def main():
     train_dataset = GraphNN_Dataset(train_smiles_list, root='gnn_root/graph_data')
     val_dataset = GraphNN_Dataset(val_smiles_list, root='gnn_root/graph_data')
     
-    train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    train_dataloader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
 
     # Grid search loop here
     hp_results = {}
@@ -64,19 +66,20 @@ def main():
             
 
             # Initialize model, optimizer, and scheduler
-            # model = GraphNN_Model(input_dim, hidden_dim, output_dim, num_hidden_layers=num_hidden_layers).to(device)
-            model = GraphNN_Model_WO(input_dim, hidden_dim, output_dim, num_hidden_layers=num_hidden_layers).to(device)
+            # model = GraphNN_Model(input_dim, hidden_dim, output_dim, num_hidden_layers).to(device)
+            model = GraphNN_Model_WO(input_dim, hidden_dim, output_dim, num_hidden_layers).to(device)
             optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
 
-            # Calculate the step size for the scheduler
-            num_epochs_per_decay = 30
-            batches_per_epoch = math.ceil(len(train_dataloader) / batch_size)
-            step_size = num_epochs_per_decay * batches_per_epoch
+            # # Calculate the step size for the scheduler
+            # num_epochs_per_decay = 30
+            # batches_per_epoch = math.ceil(len(train_dataloader) / batch_size)
+            # step_size = num_epochs_per_decay * batches_per_epoch
 
-            scheduler = StepLR(optimizer,
-                            step_size=step_size,
-                            gamma=gamma)
+            # scheduler = StepLR(optimizer,
+            #                 step_size=step_size,
+            #                 gamma=gamma)
+            scheduler = None # No scheduler for now
             criterion = torch.nn.CrossEntropyLoss()
 
             # Initialize and run Trainer
@@ -109,7 +112,7 @@ def main():
             hp_results[f"{hidden_dim}, {num_hidden_layers}"] = history
 
     # Save the results to a JSON file
-    now = datetime.now().strftime("%y%m_%d%H")
+    now = datetime.now().strftime("%y%m%d_%H%M")
     with open(f"gs_results/{now}.json", "w") as f:
         json.dump(hp_results, f)
 
