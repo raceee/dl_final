@@ -135,7 +135,7 @@ class Trainer_GNN:
             history['silhouette_score'].append(silhouette)
 
             print(
-                f"\n\n\nEpoch {epoch + 1}/{num_epochs}: "
+                f"\n\n\nEpoch {epoch + 1}/{num_epochs}: \n"
                 f"Train Loss = {train_loss:.4f}, \n"
                 f"Val Loss = {val_loss:.4f}, \n"
                 f"Val Accuracy = {val_accuracy:.4f}, \n"

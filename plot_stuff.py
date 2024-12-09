@@ -2,6 +2,8 @@ import os
 import json
 import matplotlib.pyplot as plt
 
+import _globals
+
 def plot_once(results, hidden_dims, num_hidden_layerss):
     plt.figure(figsize=(10, 8))
     if isinstance(hidden_dims, list):
@@ -51,7 +53,7 @@ def plot_gs_loss_curves(path, hidden_dims, num_hidden_layerss):
         plot_once(results, hidden_dims, num_hidden_layers)
 
 if __name__ == "__main__":
-    path = "gs_results/241208_1832.json"
-    hidden_dims = [32, 64, 128, 256]
-    num_hidden_layerss = [2, 3, 4]
-    plot_gs_loss_curves(path, hidden_dims, num_hidden_layerss)
+    path = ""
+    plot_gs_loss_curves(path,
+                        _globals.hidden_dims,
+                        _globals.num_hidden_layerss)

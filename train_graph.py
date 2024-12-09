@@ -6,6 +6,7 @@ from datetime import datetime
 from torch_geometric.loader import DataLoader
 from torch.optim.lr_scheduler import StepLR
 
+import _globals
 from util.training_set import GetTrainingSet
 from util.trainer_gnn import Trainer_GNN
 from graph.dataset import GraphNN_Dataset
@@ -35,10 +36,6 @@ def main():
     input_dim = 1
     output_dim =  118
 
-    # Interesting to grid search on
-    hidden_dims = [256]#[32, 64, 128, 256]
-    num_hidden_layerss = [12]#[2, 3, 4] 
-
     # Load the training data
     # data_path = "data/train_sample.csv"
     data_path = "data/train.csv"
@@ -61,8 +58,8 @@ def main():
 
     # Grid search loop here
     hp_results = {}
-    for hidden_dim in hidden_dims:
-        for num_hidden_layers in num_hidden_layerss:
+    for hidden_dim in _globals.hidden_dims:
+        for num_hidden_layers in _globals.num_hidden_layerss:
             print(f"Training model with hidden_dim={hidden_dim} and num_hidden_layers={num_hidden_layers}")
             
 
@@ -100,12 +97,12 @@ def main():
                                     save_best_model_path=f"gnn_checkpoints/hidden_dim_{hidden_dim}.pth")
             
             # Plot and save the loss curves
-            trainer.plot_loss_curves(
-                history=history,
-                model_name="GraphNN with Adam",
-                save_path="plots",
-                show_plot=False
-            )
+            # trainer.plot_loss_curves(
+            #     history=history,
+            #     model_name="GraphNN with Adam",
+            #     save_path="plots",
+            #     show_plot=False
+            # )
 
             # trainer.infer_clusters("data/last_unique_smiles.csv", method="umap", show_plot=False)
 
@@ -114,8 +111,14 @@ def main():
 
     # Save the results to a JSON file
     now = datetime.now().strftime("%y%m%d_%H%M")
-    with open(f"gs_results/{now}.json", "w") as f:
+    results_path = f"gs_results/{now}.json"
+    with open(results_path, "w") as f:
         json.dump(hp_results, f)
+
+    # Plot the loss curves
+    plot_gs_loss_curves(results_path,
+                        _globals.hidden_dims,
+                        _globals.num_hidden_layerss)
 
 if __name__ == '__main__':
     main()
