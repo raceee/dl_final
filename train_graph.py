@@ -27,7 +27,7 @@ def main():
     print(f"Using device: {device}")
 
     # Not interesting
-    learning_rate = 0.0001 # maybe go lower
+    learning_rate = 0.0001 # did silhouette push limits at 0.001
     gamma = 0.1
 
     num_epochs = 10
@@ -58,71 +58,82 @@ def main():
 
     # Grid search loop here
     hp_results = {}
+    silhouettes = []
     for hidden_dim in _globals.hidden_dims:
         for num_hidden_layers in _globals.num_hidden_layerss:
-            for num_randos in [10]:#range(5,105,5):
-                print(f"Training model with hidden_dim={hidden_dim} and num_hidden_layers={num_hidden_layers} and num_randos={num_randos}")
-                
-
-                # Initialize model, optimizer, and scheduler
-                # model = GraphNN_Model(input_dim, hidden_dim, output_dim, num_hidden_layers).to(device)
-                model = GraphNN_Model_WO(input_dim, hidden_dim, output_dim, num_hidden_layers).to(device)
-                optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) # add weight decay??? (1)
-
-
-                # # Calculate the step size for the scheduler
-                # num_epochs_per_decay = 30
-                # batches_per_epoch = math.ceil(len(train_dataloader) / batch_size)
-                # step_size = num_epochs_per_decay * batches_per_epoch
-
-                # scheduler = StepLR(optimizer,
-                #                 step_size=step_size,
-                #                 gamma=gamma)
-                scheduler = None # No scheduler for now
-
-                class_counts = torch.zeros(output_dim)
-                for batch in train_dataloader:
-                    for atomic_num in batch.x.flatten():
-                        class_counts[atomic_num] += 1
-
-                class_weights = 1.0 / (class_counts + 1e-6)
-                class_weights /= class_weights.sum()
-                class_weights = class_weights.to(device)
-                criterion = torch.nn.CrossEntropyLoss(ignore_index=-100, weight=class_weights)
-
-                # criterion = torch.nn.CrossEntropyLoss()
-
-                # Initialize and run Trainer
-                trainer = Trainer_GNN(
-                    model=model,
-                    train_dataloader=train_dataloader,
-                    val_dataloader=val_dataloader,
-                    optimizer=optimizer,
-                    scheduler=scheduler,
-                    device=device,
-                    criterion=criterion,
-                    class_weights=class_weights
-                )
+        
+            print(f"Training model with hidden_dim={hidden_dim} and num_hidden_layers={num_hidden_layers}")
             
-                # Train the model
-                smiles_df_path = "data/random_unique_smiles.csv"
-                history = trainer.train(num_epochs=num_epochs,
-                                        smiles_df_path=smiles_df_path,
-                                        num_randos=num_randos,
-                                        save_best_model_path=f"gnn_checkpoints/hidden_dim_{hidden_dim}.pth")
-                
-                # Plot and save the loss curves
-                # trainer.plot_loss_curves(
-                #     history=history,
-                #     model_name=f"GraphNN HD: {hidden_dim}, NHL: {num_hidden_layers}",
-                #     save_path="plots",
-                #     show_plot=False
-                # )
 
-                # trainer.infer_clusters(smiles_df_path, method="umap", show_plot=False)
+            # Initialize model, optimizer, and scheduler
+            # model = GraphNN_Model(input_dim, hidden_dim, output_dim, num_hidden_layers).to(device)
+            model = GraphNN_Model_WO(input_dim, hidden_dim, output_dim, num_hidden_layers).to(device)
+            optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate) # add weight decay??? (1)
 
-                # Save the results
-                hp_results[f"{hidden_dim}, {num_hidden_layers}, {num_randos}"] = history
+
+            # # Calculate the step size for the scheduler
+            # num_epochs_per_decay = 30
+            # batches_per_epoch = math.ceil(len(train_dataloader) / batch_size)
+            # step_size = num_epochs_per_decay * batches_per_epoch
+
+            # scheduler = StepLR(optimizer,
+            #                 step_size=step_size,
+            #                 gamma=gamma)
+            scheduler = None # No scheduler for now
+
+            # class_counts = torch.zeros(output_dim)
+            # for batch in train_dataloader:
+            #     for atomic_num in batch.x.flatten():
+            #         class_counts[atomic_num] += 1
+
+            # class_weights = 1.0 / (class_counts + 1e-6)
+            # class_weights /= class_weights.sum()
+            # class_weights = class_weights.to(device)
+            # criterion = torch.nn.CrossEntropyLoss(weight=class_weights) #ignore_index=-100, 
+
+            criterion = torch.nn.CrossEntropyLoss()
+
+            # Initialize and run Trainer
+            trainer = Trainer_GNN(
+                model=model,
+                train_dataloader=train_dataloader,
+                val_dataloader=val_dataloader,
+                optimizer=optimizer,
+                scheduler=scheduler,
+                device=device,
+                criterion=criterion,
+                # class_weights=class_weights
+            )
+        
+            # Train the model
+            smiles_df_path = "data/random_unique_smiles.csv"
+            history = trainer.train(num_epochs=num_epochs,
+                                    smiles_df_path=smiles_df_path,
+                                    num_randos=10,
+                                    save_best_model_path=f"gnn_checkpoints/hidden_dim_{hidden_dim}.pth")
+            
+            # Plot and save the loss curves
+            # trainer.plot_loss_curves(
+            #     history=history,
+            #     model_name=f"GraphNN HD with Adam",
+            #     save_path="plots",
+            #     show_plot=False
+            # )
+
+            for num_randos in range(5,105,5):
+                if num_randos == 100:
+                    silhouette = trainer.infer_clusters(smiles_df_path, num_randos, method="umap", show_plot=True)
+                else:
+                    silhouette = trainer.infer_clusters(smiles_df_path, num_randos, method="umap", show_plot=False)
+                silhouettes.append(silhouette)
+
+            # Save the results
+            hp_results[f"{hidden_dim}, {num_hidden_layers}, {num_randos}"] = history
+
+    print()
+    print("Silhouettes:")
+    print(silhouettes)
+    print()
 
     # Save the results to a JSON file
     now = datetime.now().strftime("%y%m%d_%H%M")

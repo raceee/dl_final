@@ -17,7 +17,7 @@ from util.gnn_utils import GNN_Utils
 
 
 class Trainer_GNN:
-    def __init__(self, model, train_dataloader, val_dataloader, optimizer, scheduler, device, criterion, class_weights):
+    def __init__(self, model, train_dataloader, val_dataloader, optimizer, scheduler, device, criterion):
         self.model = model
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
@@ -25,7 +25,7 @@ class Trainer_GNN:
         self.scheduler = scheduler
         self.device = device
         self.criterion = criterion
-        self.class_weights = class_weights
+        # self.class_weights = class_weights , class_weights
         self.model.to(self.device)
 
 
@@ -85,7 +85,8 @@ class Trainer_GNN:
 
         # Load the SMILES dataset for silhousette scoring
         df = pd.read_csv(smiles_df_path)
-        df['rotated_smiles'] = df['molecule_smiles'][:num_randos].apply(self.generate_rotations)
+        df = df.iloc[:num_randos]
+        df['rotated_smiles'] = df['molecule_smiles'].apply(self.generate_rotations)
 
         all_smiles = []
         labels = []
@@ -219,7 +220,7 @@ class Trainer_GNN:
         # Close the plot to free memory
         plt.close()
 
-    def generate_rotations(self, smiles, num_rotations=10):
+    def generate_rotations(self, smiles, num_rotations=100):
         try:
             mol = Chem.MolFromSmiles(smiles)
             if mol is None:
@@ -247,9 +248,11 @@ class Trainer_GNN:
             print(f"Error generating rotations: {e}")
             return []
 
-    def infer_clusters(self, path, method, show_plot=False):
+    def infer_clusters(self, path, num_randos, method, show_plot=False):
 
         df = pd.read_csv(path)
+        df = df.iloc[:num_randos]
+        print(len(df))
         df['rotated_smiles'] = df['molecule_smiles'].apply(self.generate_rotations)
         
         all_smiles = []
@@ -301,4 +304,4 @@ class Trainer_GNN:
             plt.tight_layout()
             plt.show()
 
-            return silhouette
+        return float(silhouette)
