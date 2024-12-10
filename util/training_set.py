@@ -77,7 +77,7 @@ class GetTrainingSet:
     def load_last_unique_smiles(self):
         # Load the last rows of the CSV file to get unique smiles from the end
         try:
-            # Read the entire CSV file to get the last 10 unique smiles
+            # Read the entire CSV file to get the last 100 unique smiles
             # Alternatively, you could use a larger chunk for efficiency if needed
             df = pd.read_csv(self.path, usecols=['molecule_smiles'])
             last_smiles = df.tail(10000)['molecule_smiles']  # Read the last 10,000 rows for efficiency
@@ -90,7 +90,7 @@ class GetTrainingSet:
                 if smile not in unique_smiles:
                     unique_smiles.add(smile)
                     smiles_list.append(smile)
-                    if len(unique_smiles) >= 10:
+                    if len(unique_smiles) >= 100:
                         break
 
             print(f"Total unique smiles collected from the end: {len(unique_smiles)}")
@@ -118,7 +118,7 @@ class GetTrainingSet:
             df = pd.read_csv(self.path, usecols=['molecule_smiles'])
             
             unique_smiles = set(df['molecule_smiles'])
-            random_smiles = list(unique_smiles)[:10]  # Get the first 10 unique smiles (randomized if needed)
+            random_smiles = list(unique_smiles)[:100]
 
             print(f"Total random unique smiles collected: {len(random_smiles)}")
 
