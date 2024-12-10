@@ -220,7 +220,7 @@ class Trainer_GNN:
         # Close the plot to free memory
         plt.close()
 
-    def generate_rotations(self, smiles, num_rotations=100):
+    def generate_rotations(self, smiles, num_rotations=100): # Change if you want
         try:
             mol = Chem.MolFromSmiles(smiles)
             if mol is None:
@@ -282,7 +282,7 @@ class Trainer_GNN:
         reduced_embeddings = reducer.fit_transform(embeddings_np)
 
         silhouette = silhouette_score(embeddings_np, labels)
-        print(f"Silhouette Score: {silhouette:.4f}")
+        print(f"Silhouette Score: {silhouette}")
 
         if show_plot:
             plt.figure(figsize=(10, 8))

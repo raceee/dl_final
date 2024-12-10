@@ -27,7 +27,7 @@ def main():
     print(f"Using device: {device}")
 
     # Not interesting
-    learning_rate = 0.0001 # did silhouette push limits at 0.001
+    learning_rate = 0.0002 # did silhouette push limits at 0.001
     gamma = 0.1
 
     num_epochs = 10
@@ -113,19 +113,19 @@ def main():
                                     save_best_model_path=f"gnn_checkpoints/hidden_dim_{hidden_dim}.pth")
             
             # Plot and save the loss curves
-            # trainer.plot_loss_curves(
-            #     history=history,
-            #     model_name=f"GraphNN HD with Adam",
-            #     save_path="plots",
-            #     show_plot=False
-            # )
+            trainer.plot_loss_curves(
+                history=history,
+                model_name=f"Small GNN",
+                save_path="plots",
+                show_plot=True
+            )
 
-            for num_randos in range(5,105,5):
-                if num_randos == 100:
-                    silhouette = trainer.infer_clusters(smiles_df_path, num_randos, method="umap", show_plot=True)
-                else:
-                    silhouette = trainer.infer_clusters(smiles_df_path, num_randos, method="umap", show_plot=False)
-                silhouettes.append(silhouette)
+            # for num_randos in range(5,105,5):
+            #     if num_randos == 100:
+            #         silhouette = trainer.infer_clusters(smiles_df_path, num_randos, method="umap", show_plot=True)
+            #     else:
+            #         silhouette = trainer.infer_clusters(smiles_df_path, num_randos, method="umap", show_plot=False)
+            #     silhouettes.append(silhouette)
 
             # Save the results
             hp_results[f"{hidden_dim}, {num_hidden_layers}, {num_randos}"] = history

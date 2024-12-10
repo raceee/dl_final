@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 import _globals
 
-def plot_once(results, hidden_dims, num_hidden_layerss):
+def plot_once(results, hidden_dims, num_hidden_layerss, num_rotations):
     plt.figure(figsize=(10, 8))
     if isinstance(hidden_dims, list):
         title = f"hid_layers_{num_hidden_layerss}"
@@ -24,11 +24,20 @@ def plot_once(results, hidden_dims, num_hidden_layerss):
             line = results[f"{hidden_dims}, {num_hidden_layers}"]["val_loss"]
             plt.plot(line, label=f"{num_hidden_layers}")
 
+    else:
+        title = f"GNN"
+        plot_title = f"Loss Curves for Small GNN"
+        train_line = results[f"{hidden_dims}, {num_hidden_layerss}, {num_rotations}"]["train_loss"]
+        val_line = results[f"{hidden_dims}, {num_hidden_layerss}, {num_rotations}"]["val_loss"]
+
+        plt.plot(train_line, label="Train")
+        plt.plot(val_line, label="Validation")
+
 
     plt.title(plot_title)
     plt.xlabel("Epochs")
-    plt.ylabel("Validation Loss")
-    plt.legend(loc="best", bbox_to_anchor=(1.05, 1), title=legend_title)
+    plt.ylabel("Loss")
+    plt.legend(loc="best", bbox_to_anchor=(1.05, 1))#, title=legend_title)
     plt.tight_layout()
 
     save_path = "gs_plots"
@@ -40,20 +49,26 @@ def plot_once(results, hidden_dims, num_hidden_layerss):
     # Close the plot to free memory
     plt.close()
 
-def plot_gs_loss_curves(path, hidden_dims, num_hidden_layerss):
+def plot_gs_loss_curves(path, hidden_dims, num_hidden_layerss, num_rotations):
     with open(path, "r") as f:
         results = json.load(f)
 
+    plot_once(results, hidden_dims, num_hidden_layerss, num_rotations)
     # hidden_dim fixed
-    for hidden_dim in hidden_dims:
-        plot_once(results, hidden_dim, num_hidden_layerss)
+    # for hidden_dim in hidden_dims:
+    #     plot_once(results, hidden_dim, num_hidden_layerss, num_rotations)
 
-    # num_hidden_layers fixed
-    for num_hidden_layers in num_hidden_layerss:
-        plot_once(results, hidden_dims, num_hidden_layers)
+    # # num_hidden_layers fixed
+    # for num_hidden_layers in num_hidden_layerss:
+    #     plot_once(results, hidden_dims, num_hidden_layers, num_rotations)
 
 if __name__ == "__main__":
-    path = ""
+    path = "gs_results/241210_0050.json"
+    # plot_gs_loss_curves(path,
+    #                     _globals.hidden_dims,
+    #                     _globals.num_hidden_layerss,
+    #                     100)
     plot_gs_loss_curves(path,
-                        _globals.hidden_dims,
-                        _globals.num_hidden_layerss)
+                        16,
+                        1,
+                        100)
