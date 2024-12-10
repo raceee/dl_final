@@ -52,8 +52,39 @@ def plot_gs_loss_curves(path, hidden_dims, num_hidden_layerss):
     for num_hidden_layers in num_hidden_layerss:
         plot_once(results, hidden_dims, num_hidden_layers)
 
+def plot_train_vs_loss(path, hidden_dim, num_hidden_layers):
+    with open(path, "r") as f:
+        results = json.load(f)
+
+    plt.figure(figsize=(10, 8))
+
+    train_line = results[f"{hidden_dim}, {num_hidden_layers}"]["train_loss"]
+    val_line = results[f"{hidden_dim}, {num_hidden_layers}"]["val_loss"]
+    
+    plt.plot(train_line, label="Training Loss", marker="o")
+    plt.plot(val_line, label="Validation Loss", marker="o")
+
+
+    plt.title("Loss for GNN with Adam")
+    plt.xlabel("Epochs")
+    plt.ylabel("Loss")
+    plt.legend(loc="best", bbox_to_anchor=(1.05, 1))
+    plt.tight_layout()
+
+    save_path = "gs_plots"
+    file_name = f"train_vs_loss_{hidden_dim}_{num_hidden_layers}"
+    plot_path = os.path.join(save_path, file_name)
+    plt.savefig(plot_path)
+    print(f"Loss curves saved to {plot_path}")
+
+    # Close the plot to free memory
+    plt.close()
+    
+
 if __name__ == "__main__":
-    path = ""
-    plot_gs_loss_curves(path,
-                        _globals.hidden_dims,
-                        _globals.num_hidden_layerss)
+    path = "gs_results/241208_2231.json"
+    # plot_gs_loss_curves(path,
+    #                     _globals.hidden_dims,
+    #                     _globals.num_hidden_layerss)
+    # plot_train_vs_loss(path, 16, 1)
+    plot_train_vs_loss(path, 64, 2)

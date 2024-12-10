@@ -97,14 +97,14 @@ def main():
                                     save_best_model_path=f"gnn_checkpoints/hidden_dim_{hidden_dim}.pth")
             
             # Plot and save the loss curves
-            # trainer.plot_loss_curves(
-            #     history=history,
-            #     model_name="GraphNN with Adam",
-            #     save_path="plots",
-            #     show_plot=False
-            # )
+            trainer.plot_loss_curves(
+                history=history,
+                model_name="GraphNN with Adam",
+                save_path="plots",
+                show_plot=False
+            )
 
-            # trainer.infer_clusters("data/last_unique_smiles.csv", method="umap", show_plot=False)
+            trainer.infer_clusters("data/last_unique_smiles.csv", method="umap", show_plot=True)
 
             # Save the results
             hp_results[f"{hidden_dim}, {num_hidden_layers}"] = history
@@ -116,9 +116,9 @@ def main():
         json.dump(hp_results, f)
 
     # Plot the loss curves
-    plot_gs_loss_curves(results_path,
-                        _globals.hidden_dims,
-                        _globals.num_hidden_layerss)
+    # plot_gs_loss_curves(results_path,
+    #                     _globals.hidden_dims,
+    #                     _globals.num_hidden_layerss)
 
 if __name__ == '__main__':
     main()
