@@ -169,3 +169,4 @@ cython_debug/
 /transformer_checkpoints/
 gnn_root/*
 data/graph_data/*
+results.py
