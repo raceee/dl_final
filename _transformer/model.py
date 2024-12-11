@@ -19,11 +19,11 @@ class MoleculeBERTModel(nn.Module):
             num_hidden_layers=num_hidden_layers,
             hidden_size=hidden_size,
             intermediate_size=intermediate_size,
-            output_hidden_states=True,  # Needed for triplet loss
-            return_dict=True  # Ensure outputs are returned as a dictionary
+            output_hidden_states=True, 
+            return_dict=True  
         )
         
-        # Initialize model with custom configuration
+       
         self.bert = BertModel(config)
         self.mlm_head = nn.Linear(hidden_size, vocab_size)  # Single-layer MLM head
 
@@ -39,9 +39,9 @@ class MoleculeBERTModel(nn.Module):
             dict: A dictionary containing logits and hidden states.
         """
         outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
-        sequence_output = outputs.last_hidden_state  # Shape: (batch_size, seq_length, hidden_size)
-        logits = self.mlm_head(sequence_output)  # Project hidden states to vocab size
+        sequence_output = outputs.last_hidden_state 
+        logits = self.mlm_head(sequence_output)
         return {
-            "logits": logits,  # For MLM loss
+            "logits": logits,  
             "hidden_states": outputs.hidden_states  # For triplet loss
         }

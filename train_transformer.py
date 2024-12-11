@@ -36,18 +36,15 @@ def save_results(history, summary, output_dir="results"):
     """
     os.makedirs(output_dir, exist_ok=True)
     
-    # Save history as JSON
     history_path = os.path.join(output_dir, "training_history.json")
     with open(history_path, "w") as f:
         json.dump(history, f, indent=4)
     print(f"Training history saved to {history_path}")
     
-    # Save history as CSV
     history_csv_path = os.path.join(output_dir, "training_history.csv")
     pd.DataFrame(history).to_csv(history_csv_path, index=False)
     print(f"Training history saved to {history_csv_path}")
     
-    # Save summary
     summary_path = os.path.join(output_dir, "summary.json")
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=4)
@@ -87,11 +84,9 @@ def main():
         print(f"Tokenizer vocab size: {tokenizer.vocab_size}")
         for num_hidden_layers in hidden_layer_options:
             for hidden_size in hidden_size_options:
-                # Generate timestamp
                 timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
                 print(f"Training with {num_hidden_layers} hidden layers and hidden size {hidden_size} at {timestamp}")
 
-                # Initialize the model with current parameters
                 model = MoleculeBERTModel(
                     vocab_size=tokenizer.vocab_size,
                     num_hidden_layers=num_hidden_layers,
@@ -99,7 +94,7 @@ def main():
                 ).to(device)
 
                 optimizer = torch.optim.AdamW(model.parameters(), lr=1e-6)
-                total_steps = len(train_dataloader) * 10  # Assuming 10 epochs
+                total_steps = len(train_dataloader) * 10
                 scheduler = get_linear_schedule_with_warmup(
                     optimizer,
                     num_warmup_steps=int(0.1 * total_steps),
@@ -117,44 +112,7 @@ def main():
                     criterion=loss_fn
                 )
 
-                history = trainer.train(
-                    num_epochs=100,
-                    smiles_df_path="data/random_unique_smiles.csv",
-                    tokenizer=tokenizer,
-                    dataset_length=len(training_df)
-                )
                 plt.close("all")
-                # Save training results
-                summary = {
-                    "train_size": len(train_df),
-                    "val_size": len(val_df),
-                    "model": {
-                        "num_hidden_layers": num_hidden_layers,
-                        "hidden_size": hidden_size
-                    },
-                    "optimizer": {
-                        "learning_rate": 5e-5,
-                        "scheduler": "linear"
-                    },
-                    "num_epochs": 3
-                }
-
-                # # Create unique result directory for each combination
-                # output_dir = f"results/{timestamp}_dataset_{len(training_df)}_layers_{num_hidden_layers}_hidden_{hidden_size}"
-                # save_results(history, summary, output_dir=output_dir)
-
-                # trainer.plot_loss_curves(
-                #     history=history,
-                #     model_name=f"MoleculeBERT_layers_{num_hidden_layers}_hidden_{hidden_size}",
-                #     save_path=os.path.join(output_dir, "plots"),
-                #     show_plot=False
-                # )
-
-                # trainer.infer_clusters(
-                #     "./data/last_unique_smiles.csv",
-                #     tokenizer,
-                #     method="umap"
-                # )
 
 if __name__ == "__main__":
     main()

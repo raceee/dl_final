@@ -24,18 +24,6 @@ matplotlib.use('Agg')  # Non-interactive backend
 
 class Trainer:
     def __init__(self, model, train_dataloader, val_dataloader, optimizer, tokenizer, scheduler=None, device=None, criterion=None):
-        """
-        Initialize the Trainer class.
-
-        Args:
-            model (torch.nn.Module): The model to train.
-            train_dataloader (DataLoader): DataLoader for the training set.
-            val_dataloader (DataLoader): DataLoader for the validation set.
-            optimizer (torch.optim.Optimizer): Optimizer for model parameters.
-            scheduler (optional): Learning rate scheduler.
-            device (torch.device): The device to run the training on.
-            criterion (callable, optional): The loss function.
-        """
         self.model = model
         self.train_dataloader = train_dataloader
         self.val_dataloader = val_dataloader
@@ -51,19 +39,7 @@ class Trainer:
         self.criterion = criterion
 
     def train(self, num_epochs, smiles_df_path, tokenizer, dataset_length):
-        """
-        Train the model for a specified number of epochs, saving plots, weights, and history.
 
-        Args:
-            num_epochs (int): Number of epochs to train.
-            smiles_df_path (str): Path to the CSV file containing SMILES data for silhouette scoring.
-            tokenizer: Tokenizer function or object for SMILES strings.
-            dataset_length (int): Length of the training dataset.
-
-        Returns:
-            dict: Training and validation losses per epoch.
-        """
-        # Generate a unique run name based on the model's configuration and dataset length
         run_name = (
             f"MoleculeBERT_layers_{self.model.num_hidden_layers}_hidden_{self.model.hidden_size}_"
             f"intermediate_{self.model.intermediate_size}_dataset_{dataset_length}"
@@ -122,73 +98,6 @@ class Trainer:
 
         return history
 
-    # def train_epoch(self):
-    #     self.model.train()
-    #     total_mlm_loss = 0
-    #     total_triplet_loss = 0
-    #     progress_bar = tqdm(self.train_dataloader, desc="Training Epoch Progress", unit="batch", leave=False)
-
-    #     for batch_idx, batch in enumerate(progress_bar):
-    #         # Unpack batch
-    #         masked_input_ids = batch["anchor_input_ids"].to(self.device)
-    #         anchor_attention_mask = batch["anchor_attention_mask"].to(self.device)
-    #         mlm_labels = batch["mlm_labels"].to(self.device)
-    #         positive_input_ids = batch["positive_input_ids"].to(self.device)
-    #         positive_attention_mask = batch["positive_attention_mask"].to(self.device)
-    #         negative_input_ids = batch["negative_input_ids"].to(self.device)
-    #         negative_attention_mask = batch["negative_attention_mask"].to(self.device)
-
-    #         # Forward pass for individual inputs
-    #         anchor_outputs = self.model(input_ids=masked_input_ids, attention_mask=anchor_attention_mask)
-    #         positive_outputs = self.model(input_ids=positive_input_ids, attention_mask=positive_attention_mask)
-    #         negative_outputs = self.model(input_ids=negative_input_ids, attention_mask=negative_attention_mask)
-
-    #         # Extract logits and CLS embeddings
-    #         logits = anchor_outputs["logits"]
-    #         anchor_cls = anchor_outputs["hidden_states"][-1][:, 0, :]
-    #         positive_cls = positive_outputs["hidden_states"][-1][:, 0, :]
-    #         negative_cls = negative_outputs["hidden_states"][-1][:, 0, :]
-
-    #         # Compute MLM loss
-    #         mlm_loss_fn = nn.CrossEntropyLoss(ignore_index=-100)
-    #         mlm_loss = mlm_loss_fn(logits.view(-1, logits.size(-1)), mlm_labels.view(-1))
-
-    #         # Compute Triplet Loss
-    #         triplet_loss = triplet_margin_loss(anchor_cls, positive_cls, negative_cls, margin=1.0)
-
-    #         # Scale losses for balance
-    #         total_loss = 0.7 * mlm_loss + 0.3 * triplet_loss
-
-    #         # Debug cosine similarity
-    #         from torch.nn.functional import cosine_similarity
-    #         anchor_positive_sim = cosine_similarity(anchor_cls, positive_cls).mean().item()
-    #         anchor_negative_sim = cosine_similarity(anchor_cls, negative_cls).mean().item()
-    #         print(f"Anchor-Positive Similarity: {anchor_positive_sim}")
-    #         print(f"Anchor-Negative Similarity: {anchor_negative_sim}")
-
-    #         # Backward pass
-    #         self.optimizer.zero_grad()
-    #         total_loss.backward()
-
-    #         # Optimizer step
-    #         self.optimizer.step()
-
-    #         # Accumulate losses
-    #         total_mlm_loss += mlm_loss.detach().cpu().item()
-    #         total_triplet_loss += triplet_loss.detach().cpu().item()
-
-    #         # Update progress bar
-    #         progress_bar.set_postfix(
-    #             mlm_loss=mlm_loss.item(),
-    #             triplet_loss=triplet_loss.item(),
-    #             total_loss=total_loss.item()
-    #         )
-
-    #     # Average losses
-    #     avg_mlm_loss = total_mlm_loss / len(self.train_dataloader)
-    #     avg_triplet_loss = total_triplet_loss / len(self.train_dataloader)
-
-    #     return avg_mlm_loss, avg_triplet_loss
     def train_epoch(self):
         self.model.train()
         total_mlm_loss = 0
@@ -274,15 +183,6 @@ class Trainer:
 
     
     def plot_loss_curves(self, history, model_name="Model", save_path=None, show_plot=False):
-        """
-        Plot and save the training and validation loss curves.
-
-        Args:
-            history (dict): Dictionary containing 'train_loss' and 'val_loss'.
-            model_name (str): Descriptive name of the model to include in the title.
-            save_path (str, optional): Directory to save the plot. If None, does not save.
-            show_plot (bool, optional): Whether to display the plot interactively. Default is False.
-        """
         train_loss = history.get("train_loss", [])
         val_loss = history.get("val_loss", [])
 
@@ -306,18 +206,6 @@ class Trainer:
         plt.close()
 
     def infer_clusters(self, path, tokenizer, method="umap"):
-        """
-        Ingest the path of the dataframe, tokenize the SMILES and their rotations,
-        compute embeddings using the model, and visualize clusters.
-
-        Args:
-            path (str): Path to the dataframe
-            tokenizer: Tokenizer function or object for tokenizing SMILES strings
-            method (str): Dimensionality reduction method ('umap' or 'tsne')
-
-        Returns:
-            float: Silhouette score (higher is better).
-        """
 
         device = torch.device('mps') if torch.backends.mps.is_available() else torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -350,11 +238,10 @@ class Trainer:
             outputs = self.model(tokenized_smiles)
             embeddings = outputs.logits
 
-        embeddings_cls = embeddings[:, 0, :]  # Select the embedding at position 0 since it is the [CLS] token
+        embeddings_cls = embeddings[:, 0, :]  # the embedding at position 0 is the [CLS] token
 
         embeddings_np = embeddings_cls.cpu().numpy()
 
-        # Apply dimensionality reduction
         if method.lower() == "umap":
             reducer = UMAP(n_components=2, random_state=42)
         else:
@@ -472,19 +359,6 @@ class Trainer:
 
 
     def calculate_silhouette_score(self, smiles_df_path, tokenizer, epoch=None, save_dir=None, show_plot=False):
-        """
-        Calculate and visualize the silhouette score for the rotations of SMILES in last_unique_smiles.csv.
-
-        Args:
-            smiles_df_path (str): Path to the CSV file containing last_unique SMILES.
-            tokenizer: Tokenizer function or object for SMILES strings.
-            epoch (int, optional): Current epoch number for labeling the plot.
-            save_dir (str, optional): Directory to save the plot. If None, does not save.
-            show_plot (bool, optional): Whether to show the plot interactively.
-
-        Returns:
-            float: Silhouette score (higher is better).
-        """
         self.model.eval()  # Ensure the model is in evaluation mode
 
         # Load the SMILES dataset
@@ -520,19 +394,16 @@ class Trainer:
 
         embeddings_np = embeddings_cls.cpu().numpy()  # Convert to numpy for silhouette scoring
 
-        # Calculate silhouette score
-        if len(set(labels)) > 1:  # Silhouette score requires at least 2 clusters
+        if len(set(labels)) > 1: 
             silhouette = silhouette_score(embeddings_np, labels)
         else:
-            silhouette = float('nan')  # Silhouette score is undefined for a single cluster
+            silhouette = float('nan')
 
         print(f"Silhouette Score (last_unique_smiles): {silhouette:.4f}")
 
-        # Apply UMAP for visualization
         reducer = UMAP(n_components=2, random_state=42)
         reduced_embeddings = reducer.fit_transform(embeddings_np)
 
-        # Generate the scatter plot
         plt.figure(figsize=(10, 8))
         unique_labels = list(set(labels))
         for label in unique_labels:
@@ -552,7 +423,6 @@ class Trainer:
         plt.legend(loc="best", bbox_to_anchor=(1.05, 1), title="Molecules")
         plt.tight_layout()
 
-        # Save plot if save_dir is provided
         if save_dir:
             os.makedirs(save_dir, exist_ok=True)
             filename = (
