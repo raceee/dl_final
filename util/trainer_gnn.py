@@ -1,5 +1,20 @@
 import os
 import torch
+import random
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+from rdkit.Chem import CanonicalRankAtoms
+from umap import UMAP
+
+from rdkit.Chem import rdmolops
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from sklearn.metrics import silhouette_score
+
+from util.gnn_utils import GNN_Utils
+
 
 class Trainer_GNN:
     def __init__(self, model, train_dataloader, val_dataloader, optimizer, scheduler, device, criterion):
@@ -43,11 +58,42 @@ class Trainer_GNN:
         avg_loss = total_loss / len(self.train_dataloader)
         return avg_loss
     
-    def validate_epoch(self):
+    def validate_epoch(self, smiles_df_path):
         self.model.eval()
         total_loss = 0
         correct = 0
         total = 0
+        
+        labels_list = []
+
+        # Load the SMILES dataset for silhousette scoring
+        df = pd.read_csv(smiles_df_path)
+        df['rotated_smiles'] = df['molecule_smiles'].apply(self.generate_rotations)
+
+        all_smiles = []
+        labels = []
+
+        for idx, (original, rotations) in enumerate(zip(df['molecule_smiles'], df['rotated_smiles'])):
+            all_smiles.append(original)
+            labels.append(idx)
+            for rotation in rotations:
+                all_smiles.append(rotation)
+                labels.append(idx)
+
+        # Convert to graphs
+        utils = GNN_Utils(self.device)
+
+        with torch.no_grad():
+            embeddings_list = []
+            for smi in all_smiles:
+                data = utils.process(smi)
+
+                embeddings = self.model(data, return_embeddings=True)
+                embeddings_list.append(embeddings.cpu().numpy())
+
+            embeddings_np = np.vstack(embeddings_list)
+            silhouette = silhouette_score(embeddings_np, labels) if len(set(labels)) > 1 else float('nan')
+
         with torch.no_grad():
             for batch in self.val_dataloader:
                 # Be like a woman and Assume things
@@ -63,35 +109,37 @@ class Trainer_GNN:
 
                 # Compute loss
                 loss = self.criterion(outputs[mask], labels.squeeze().long())
+                total_loss += loss.item()
 
                 # Metrics
-                total_loss += loss.item()
                 _, predicted = torch.max(outputs[mask], 1)
                 correct += (predicted == labels.squeeze().long()).sum().item()
                 total += labels.squeeze().size(0)
 
         avg_loss = total_loss / len(self.val_dataloader)
         accuracy = correct / total
-        return avg_loss, accuracy
+        return avg_loss, accuracy, silhouette
     
-    def train(self, num_epochs, save_best_model_path=None):
-        history = {'train_loss': [], 'val_loss': [], 'val_accuracy': []}
+    def train(self, num_epochs, smiles_df_path, save_best_model_path=None):
+        history = {'train_loss': [], 'val_loss': [], 'val_accuracy': [], 'silhouette_score': []}
         best_val_loss = float('inf')
         best_model_state = None
 
         for epoch in range(num_epochs):
             train_loss = self.train_epoch()
-            val_loss, val_accuracy = self.validate_epoch()
+            val_loss, val_accuracy, silhouette = self.validate_epoch(smiles_df_path)
 
             history['train_loss'].append(train_loss)
             history['val_loss'].append(val_loss)
             history['val_accuracy'].append(val_accuracy)
+            history['silhouette_score'].append(silhouette)
 
             print(
-                f"Epoch {epoch + 1}/{num_epochs}: "
-                f"Train Loss = {train_loss:.4f}, "
-                f"Val Loss = {val_loss:.4f}, "
-                f"Val Accuracy = {val_accuracy:.4f}"
+                f"\n\n\nEpoch {epoch + 1}/{num_epochs}: "
+                f"Train Loss = {train_loss:.4f}, \n"
+                f"Val Loss = {val_loss:.4f}, \n"
+                f"Val Accuracy = {val_accuracy:.4f}, \n"
+                f"Silhouette Score = {silhouette:.4f}"
             )
             
             if val_loss < best_val_loss:
@@ -106,3 +154,118 @@ class Trainer_GNN:
                 print(f"Best model saved to {path_name}")
 
         return history
+    
+    def plot_loss_curves(self, history, model_name="Model", save_path=None, show_plot=False):
+        train_loss = history['train_loss']
+        val_loss = history['val_loss']
+
+        if not train_loss or not val_loss:
+            raise ValueError("History does not contain 'train_loss' or 'val_loss'.")
+        
+        # Plot losses
+        plt.figure(figsize=(10, 6))
+        plt.plot(train_loss, label="Training Loss", marker="o")
+        plt.plot(val_loss, label="Validation Loss", marker="o")
+        plt.xlabel("Epochs")
+        plt.ylabel("Loss")
+        plt.title(f"Loss Curves for {model_name}")
+        plt.legend()
+        plt.grid()
+
+        if save_path:
+            os.makedirs(save_path, exist_ok=True)
+            plot_path = os.path.join(save_path, f"{model_name.replace(' ', '_')}_loss_curves.png")
+            plt.savefig(plot_path)
+            print(f"Loss curves saved to {plot_path}")
+
+        # Show the plot if required
+        if show_plot:
+            plt.show()
+
+        # Close the plot to free memory
+        plt.close()
+
+    def generate_rotations(self, smiles, num_rotations=10):
+        try:
+            mol = Chem.MolFromSmiles(smiles)
+            if mol is None:
+                raise ValueError("Invalid SMILES string")
+            
+            rotations = set()
+            num_atoms = mol.GetNumAtoms()
+
+            for _ in range(num_rotations * 2):
+                atom_indices = list(range(num_atoms))
+                random.shuffle(atom_indices)
+
+                randomized_mol = AllChem.RenumberAtoms(mol, atom_indices)
+
+                rotated_smiles = Chem.MolToSmiles(randomized_mol, canonical=False)
+
+                rotations.add(rotated_smiles)
+
+                if len(rotations) == num_rotations:
+                    break
+
+            return list(rotations)[:num_rotations]
+        
+        except Exception as e:
+            print(f"Error generating rotations: {e}")
+            return []
+
+
+    def infer_clusters(self, path, method):
+
+        df = pd.read_csv(path)
+
+        df['rotated_smiles'] = df['molecule_smiles'].apply(self.generate_rotations)
+
+        all_smiles = []
+        labels = []
+
+        for idx, (original, rotations) in enumerate(zip(df['molecule_smiles'], df['rotated_smiles'])):
+            all_smiles.append(original)
+            labels.append(idx)
+            for rotation in rotations:
+                all_smiles.append(rotation)
+                labels.append(idx)
+
+        # Convert to graphs
+        utils = GNN_Utils(self.device)
+
+        embeddings_list = []
+        with torch.no_grad():
+            for smi in all_smiles:
+                data = utils.process(smi)
+
+                embeddings = self.model(data, return_embeddings=True)
+                embeddings_list.append(embeddings.cpu().numpy())
+
+            embeddings_np = np.vstack(embeddings_list)
+
+        reducer = UMAP(n_components=2, random_state=42)
+        reduced_embeddings = reducer.fit_transform(embeddings_np)
+
+        silhouette = silhouette_score(embeddings_np, labels)
+        print(f"Silhouette Score: {silhouette:.4f}")
+
+        plt.figure(figsize=(10, 8))
+        unique_labels = list(set(labels))
+        for label in unique_labels:
+            indices = [i for i, lbl in enumerate(labels) if lbl == label]
+            plt.scatter(
+                reduced_embeddings[indices, 0],
+                reduced_embeddings[indices, 1],
+                label=f"Molecule {label + 1}",
+                alpha=0.7,
+                s=50
+            )
+
+        plt.title(f"Cluster Visualization ({method.upper()})")
+        plt.xlabel("Component 1")
+        plt.ylabel("Component 2")
+        plt.legend(loc="best", bbox_to_anchor=(1.05, 1), title="Molecules")
+        plt.tight_layout()
+        plt.show()
+
+        return silhouette
