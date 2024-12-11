@@ -220,7 +220,7 @@ class Trainer_GNN:
         # Close the plot to free memory
         plt.close()
 
-    def generate_rotations(self, smiles, num_rotations=100): # Change if you want
+    def generate_rotations(self, smiles, num_rotations=10): # Change if you want
         try:
             mol = Chem.MolFromSmiles(smiles)
             if mol is None:
