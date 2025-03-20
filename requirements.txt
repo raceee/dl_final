@@ -7,3 +7,4 @@ numpy
 umap-learn
 scikit-learn
 rdkit
+tqdm

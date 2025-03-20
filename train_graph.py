@@ -20,16 +20,21 @@ else:
 def main():
     print(f"Using device: {device}")
 
-    input_dim = 1
-    hidden_dim = 64 # 32, 64, 128, 256
-    output_dim =  118
-    num_hidden_layers = 2
-    learning_rate = 0.001 # 0.01 - 0.0001
+    # Not interesting
+    learning_rate = 0.01
     gamma = 0.1
 
     num_epochs = 10
-    batch_size = 32 # 16, 32, 64, 128
+    batch_size = 128
+    
+    input_dim = 1
+    output_dim =  118
 
+    # Interesting to grid search on
+    hidden_dim = 64 # 32, 64, 128, 256
+    num_hidden_layers = 2 # 2, 3, 4
+
+    # Load the training data
     training_df, _, _ = GetTrainingSet("data/train_sample.csv").get_training_data()
 
     train_size = int(0.8 * len(training_df))
@@ -40,12 +45,14 @@ def main():
     val_smiles_list = val_df['molecule_smiles'].tolist()
 
     # Datasets and DataLoader
-    train_dataset = GraphNN_Dataset(train_smiles_list, root='data/graph_data')
-    val_dataset = GraphNN_Dataset(val_smiles_list, root='data/graph_data')
+    train_dataset = GraphNN_Dataset(train_smiles_list, root='gnn_root/graph_data')
+    val_dataset = GraphNN_Dataset(val_smiles_list, root='gnn_root/graph_data')
     
     train_dataloader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     val_dataloader = DataLoader(val_dataset, batch_size=32, shuffle=False)
 
+    # Grid search loop here
+    
     # Initialize model, optimizer, and scheduler
     model = GraphNN_Model(input_dim, hidden_dim, output_dim, num_hidden_layers=num_hidden_layers).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
@@ -71,15 +78,22 @@ def main():
         device=device,
         criterion=criterion
     )
-
+   
     # Train the model
     history = trainer.train(num_epochs=num_epochs,
-                            save_best_model_path=f"gnn_checkpoints/hidden_dim_{hidden_dim}.pth") # need another name most likely
+                            smiles_df_path="data/last_unique_smiles.csv",
+                            save_best_model_path=f"gnn_checkpoints/hidden_dim_{hidden_dim}.pth")
     
-    print(history)
     # Plot and save the loss curves
-    
+    trainer.plot_loss_curves(
+        history=history,
+        model_name="GraphNN with Adam",
+        save_path="plots",
+        show_plot=False
+    )
 
+    ### Doesn't throw errors until here
+    trainer.infer_clusters("data/last_unique_smiles.csv", method="umap")
 
 
 if __name__ == '__main__':

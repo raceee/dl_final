@@ -9,19 +9,41 @@ class GetTrainingSet:
         self.random_unique_smiles = None
 
     def get_training_data(self):
-        if self.check_dataset_exists() and not os.path.exists("./data/random_unique_smiles.csv"):
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+
+        training_dataset_path = os.path.join(data_dir, "training_dataset.csv")
+        last_unique_smiles_path = os.path.join(data_dir, "last_unique_smiles.csv")
+        random_unique_smiles_path = os.path.join(data_dir, "random_unique_smiles.csv")
+
+        # Check if the main dataset exists
+        if not os.path.exists(training_dataset_path):
+            print("Training dataset not found. Generating it...")
             self.training_set = self.load_training_set()
-            self.last_unique_smiles = self.load_last_unique_smiles()
-            self.random_unique_smiles = self.load_random_unique_smiles()
-        elif os.path.exists("./data/training_dataset.csv"):
-            self.training_set = pd.read_csv("./data/training_dataset.csv")
-            self.last_unique_smiles = pd.read_csv("./data/last_unique_smiles.csv")
-            self.random_unique_smiles = pd.read_csv("./data/random_unique_smiles.csv")
         else:
-            print("Dataset not found in the current or sibling directories.")
-            raise FileNotFoundError("Dataset not found in the current or sibling directories.")
+            print("Training dataset found. Loading it...")
+            self.training_set = pd.read_csv(training_dataset_path)
+
+        # Check if last_unique_smiles.csv exists
+        if not os.path.exists(last_unique_smiles_path):
+            print("Last unique smiles file not found. Generating it...")
+            self.last_unique_smiles = self.load_last_unique_smiles()
+        else:
+            print("Last unique smiles file found. Loading it...")
+            self.last_unique_smiles = pd.read_csv(last_unique_smiles_path)
+
+        # Check if random_unique_smiles.csv exists
+        if not os.path.exists(random_unique_smiles_path):
+            print("Random unique smiles file not found. Generating it...")
+            self.random_unique_smiles = self.load_random_unique_smiles()
+        else:
+            print("Random unique smiles file found. Loading it...")
+            self.random_unique_smiles = pd.read_csv(random_unique_smiles_path)
+
+        # Return all datasets
         return self.training_set, self.last_unique_smiles, self.random_unique_smiles
-    
+        
     def check_dataset_exists(self):
         # Check if the dataset exists in the current or sibling 'data' directory
         if os.path.exists(self.path):
@@ -36,13 +58,13 @@ class GetTrainingSet:
         unique_smiles = set()
         smiles_list = []
 
-        # Define the desired number of unique entries
         desired_unique_count = 100000
 
-        # Define a suitable chunksize (adjust based on your system's memory)
         chunksize = 100000
 
         try:
+            shuffled_df = pd.read_csv(self.path, usecols=['molecule_smiles']).sample(frac=1, random_state=42)
+
             # Read the CSV file in chunks from the beginning
             for chunk in pd.read_csv(self.path, usecols=['molecule_smiles'], chunksize=chunksize):
                 print(f"Processing chunk with {len(chunk)} rows")
@@ -61,7 +83,6 @@ class GetTrainingSet:
             # Convert the list of unique smiles to a DataFrame
             result_df = pd.DataFrame({'molecule_smiles': smiles_list})
 
-            # Save the result to a CSV file without the index in the 'data' directory
             data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
             if not os.path.exists(data_dir):
                 os.makedirs(data_dir)
@@ -75,18 +96,15 @@ class GetTrainingSet:
             return None
 
     def load_last_unique_smiles(self):
-        # Load the last rows of the CSV file to get unique smiles from the end
         try:
-            # Read the entire CSV file to get the last 10 unique smiles
-            # Alternatively, you could use a larger chunk for efficiency if needed
             df = pd.read_csv(self.path, usecols=['molecule_smiles'])
-            last_smiles = df.tail(10000)['molecule_smiles']  # Read the last 10,000 rows for efficiency
-            
+            last_smiles = df.tail(10000)['molecule_smiles'].tolist()  # Convert to list for reversing
+
             unique_smiles = set()
             smiles_list = []
 
             # Collect up to 10 unique molecules from the end
-            for smile in reversed(last_smiles):
+            for smile in reversed(last_smiles):  # Now reversed works correctly
                 if smile not in unique_smiles:
                     unique_smiles.add(smile)
                     smiles_list.append(smile)
@@ -95,10 +113,8 @@ class GetTrainingSet:
 
             print(f"Total unique smiles collected from the end: {len(unique_smiles)}")
 
-            # Convert the list of unique smiles to a DataFrame
             result_df = pd.DataFrame({'molecule_smiles': smiles_list})
 
-            # Save the result to a CSV file without the index in the 'data' directory
             data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
             if not os.path.exists(data_dir):
                 os.makedirs(data_dir)
@@ -111,21 +127,19 @@ class GetTrainingSet:
             print(f"An error occurred while loading the last unique smiles: {e}")
             return None
 
+
     def load_random_unique_smiles(self):
         # Load 10 random unique smiles from the dataset
         try:
-            # Read the entire CSV file to sample random unique smiles
             df = pd.read_csv(self.path, usecols=['molecule_smiles'])
             
             unique_smiles = set(df['molecule_smiles'])
-            random_smiles = list(unique_smiles)[:10]  # Get the first 10 unique smiles (randomized if needed)
+            random_smiles = list(unique_smiles)[:10]
 
             print(f"Total random unique smiles collected: {len(random_smiles)}")
 
-            # Convert the list of random unique smiles to a DataFrame
             result_df = pd.DataFrame({'molecule_smiles': random_smiles})
 
-            # Save the result to a CSV file without the index in the 'data' directory
             data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'data')
             if not os.path.exists(data_dir):
                 os.makedirs(data_dir)

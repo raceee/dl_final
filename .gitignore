@@ -166,5 +166,5 @@ cython_debug/
 *.pth
 /lightning_logs/
 /transformer_checkpoints/
-???/*
+gnn_root/*
 data/graph_data/*
