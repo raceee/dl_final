@@ -350,3 +350,4 @@ class Trainer:
         avg_loss = total_loss / len(self.val_dataloader)
         accuracy = correct / total
         return avg_loss, accuracy, silhouette
+        ## test comment
